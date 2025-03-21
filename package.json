@@ -1,0 +1,36 @@
+{
+  "name": "zemdomu",
+  "displayName": "ZemDomu",
+  "description": "A semantic linter for HTML",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:html"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "zemdomu.lint",
+        "title": "Run ZemDomu Linter"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc",
+    "watch": "tsc -w"
+  },
+  "devDependencies": {
+    "@types/htmlparser2": "^4.1.0",
+    "@types/vscode": "^1.98.0",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "htmlparser2": "^10.0.0"
+  }
+}
