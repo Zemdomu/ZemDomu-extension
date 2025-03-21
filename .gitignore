@@ -1,0 +1,13 @@
+# Node
+node_modules/
+dist/
+.vscode/
+out/
+*.log
+
+# VS Code Extension build artifacts
+*.vsix
+
+# OS junk
+.DS_Store
+Thumbs.db
