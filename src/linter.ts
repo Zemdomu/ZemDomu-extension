@@ -13,6 +13,7 @@ export function lintHtml(html: string): LintResult[] {
   let lastHeadingLevel = 0;
   let h1Count = 0; // Tracks number of <h1> occurrences
   const sectionStack: { foundHeading: boolean; line: number; column: number }[] = [];
+  const anchorStack: { foundText: boolean; line: number; column: number }[] = [];
 
   let currentLine = 0;
   let currentColumn = 0;
@@ -26,6 +27,10 @@ export function lintHtml(html: string): LintResult[] {
           currentColumn = lines[lines.length - 1].length;
         } else {
           currentColumn += text.length;
+        }
+        // Track text inside <a>
+        if (anchorStack.length > 0 && text.trim().length > 0) {
+          anchorStack[anchorStack.length - 1].foundText = true;
         }
       },
 
@@ -86,6 +91,20 @@ export function lintHtml(html: string): LintResult[] {
           }
         }
 
+        // Rule: <a> must have href and link text
+        if (name === 'a') {
+          const href = attribs.href;
+          // Push context to track text
+          anchorStack.push({ foundText: false, line: currentTag.line, column: currentTag.column });
+          if (href === undefined || href.trim() === '') {
+            results.push({
+              line: currentTag.line,
+              column: currentTag.column,
+              message: '<a> tag missing non-empty href attribute'
+            });
+          }
+        }
+
         // Track <section> context
         if (name === 'section') {
           sectionStack.push({ foundHeading: false, line: currentTag.line, column: currentTag.column });
@@ -94,6 +113,18 @@ export function lintHtml(html: string): LintResult[] {
 
       onclosetag(name: string) {
         tagStack.pop();
+        // Check closing <a>
+        if (name === 'a') {
+          const anchor = anchorStack.pop();
+          if (anchor && !anchor.foundText) {
+            results.push({
+              line: anchor.line,
+              column: anchor.column,
+              message: '<a> tag missing link text'
+            });
+          }
+        }
+        // Check closing <section>
         if (name === 'section') {
           const sec = sectionStack.pop();
           if (sec && !sec.foundHeading) {
