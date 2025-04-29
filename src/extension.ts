@@ -1,4 +1,3 @@
-// src/extension.ts
 import * as vscode from 'vscode';
 import { lintHtml } from './linter';
 
@@ -9,10 +8,9 @@ export function activate(context: vscode.ExtensionContext) {
   vscode.workspace.onDidSaveTextDocument((document) => {
     if (document.languageId !== 'html') return;
 
-    console.log("ZemDomu Linter is running..."); // Debugging log
-
+    console.log("ZemDomu Linter is running...");
     const results = lintHtml(document.getText());
-    console.log("Lint results:", results); // Debugging log
+    console.log("Lint results:", results);
 
     const diags: vscode.Diagnostic[] = results.map(res => {
       const range = new vscode.Range(

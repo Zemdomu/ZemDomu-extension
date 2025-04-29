@@ -8,17 +8,16 @@ interface LintResult {
 }
 
 export function lintHtml(html: string): LintResult[] {
-    const results: LintResult[] = [];
-    const tagStack: { tag: string; line: number; column: number }[] = [];
-    console.log(results);
+  const results: LintResult[] = [];
+  const tagStack: { tag: string; line: number; column: number }[] = [];
+  let lastHeadingLevel = 0; // ✅ Stores the last heading level globally
 
   let currentLine = 0;
   let currentColumn = 0;
 
   const parser = new Parser(
     {
-      ontext(text: string) {
-        // Track new lines in text nodes
+      ontext(text) {
         const lines = text.split("\n");
         if (lines.length > 1) {
           currentLine += lines.length - 1;
@@ -28,7 +27,7 @@ export function lintHtml(html: string): LintResult[] {
         }
       },
 
-      onopentag(name: string) {
+      onopentag(name) {
         const currentTag = {
           tag: name,
           line: currentLine,
@@ -37,7 +36,7 @@ export function lintHtml(html: string): LintResult[] {
 
         tagStack.push(currentTag);
 
-        // Rule: <li> must be inside <ul> or <ol>
+        // 🟢 Rule: <li> must be inside <ul> or <ol>
         if (name === 'li') {
           const parent = tagStack[tagStack.length - 2];
           if (!parent || (parent.tag !== 'ul' && parent.tag !== 'ol')) {
@@ -47,6 +46,21 @@ export function lintHtml(html: string): LintResult[] {
               message: '<li> must be inside a <ul> or <ol>'
             });
           }
+        }
+
+        // 🔵 Rule: Heading order check (no skipping levels)
+        if (/^h[1-6]$/.test(name)) {
+          const headingLevel = parseInt(name.substring(1), 10);
+
+          if (lastHeadingLevel !== 0 && headingLevel > lastHeadingLevel + 1) {
+            results.push({
+              line: currentTag.line,
+              column: currentTag.column,
+              message: `⚠️ Heading level skipped: Found <${name}> after <h${lastHeadingLevel}>`
+            });
+          }
+
+          lastHeadingLevel = headingLevel; // ✅ Store the last seen heading
         }
       },
 
