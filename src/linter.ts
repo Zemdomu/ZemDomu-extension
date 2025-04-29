@@ -11,6 +11,7 @@ export function lintHtml(html: string): LintResult[] {
   const results: LintResult[] = [];
   const tagStack: { tag: string; line: number; column: number }[] = [];
   let lastHeadingLevel = 0;
+  let h1Count = 0; // Tracks number of <h1> occurrences
   const sectionStack: { foundHeading: boolean; line: number; column: number }[] = [];
 
   let currentLine = 0;
@@ -32,9 +33,16 @@ export function lintHtml(html: string): LintResult[] {
         const currentTag = { tag: name, line: currentLine, column: currentColumn };
         tagStack.push(currentTag);
 
-        // Track <section> context
-        if (name === 'section') {
-          sectionStack.push({ foundHeading: false, line: currentLine, column: currentColumn });
+        // Rule: Only one <h1> per document
+        if (name === 'h1') {
+          h1Count += 1;
+          if (h1Count > 1) {
+            results.push({
+              line: currentTag.line,
+              column: currentTag.column,
+              message: 'Only one <h1> allowed per document'
+            });
+          }
         }
 
         // Rule: <li> must be inside <ul> or <ol>
@@ -76,6 +84,11 @@ export function lintHtml(html: string): LintResult[] {
               message: '<img> tag missing non-empty alt attribute'
             });
           }
+        }
+
+        // Track <section> context
+        if (name === 'section') {
+          sectionStack.push({ foundHeading: false, line: currentTag.line, column: currentTag.column });
         }
       },
 
