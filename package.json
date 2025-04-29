@@ -1,10 +1,16 @@
 {
   "name": "zemdomu",
   "displayName": "ZemDomu",
-  "description": "A semantic linter for HTML",
+  "publisher": "Zelcus",
+  "description": "A semantic linter for HTML and JSX/TSX",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Zelcus/ZemDomu.git"
+  },
+
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.75.0"
+    "vscode": "^1.98.0"
   },
   "categories": [
     "Linters"
@@ -18,19 +24,21 @@
   "contributes": {
     "commands": [
       {
-        "command": "zemdomu.lint",
-        "title": "Run ZemDomu Linter"
+        "command": "zemdomu.lintWorkspace",
+        "title": "ZemDomu: Scan Workspace for Semantic Issues"
       }
     ]
   },
   "scripts": {
-    "compile": "tsc",
-    "watch": "tsc -w"
+    "compile": "tsc -p ./tsconfig.json",
+    "watch": "tsc -w",
+    "package": "vsce package"
   },
   "devDependencies": {
     "@types/htmlparser2": "^4.1.0",
     "@types/vscode": "^1.98.0",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "@vscode/vsce": "^2.0.0"
   },
   "dependencies": {
     "htmlparser2": "^10.0.0"
