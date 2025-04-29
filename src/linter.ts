@@ -7,7 +7,12 @@ interface LintResult {
   message: string;
 }
 
-export function lintHtml(html: string): LintResult[] {
+/**
+ * Lint HTML or JSX/TSX string for semantic issues.
+ * @param html The content to lint.
+ * @param xmlMode Whether to use XML mode (for JSX/TSX).
+ */
+export function lintHtml(html: string, xmlMode: boolean = false): LintResult[] {
   const results: LintResult[] = [];
   const tagStack: { tag: string; line: number; column: number }[] = [];
   let lastHeadingLevel = 0;
@@ -16,8 +21,6 @@ export function lintHtml(html: string): LintResult[] {
   const anchorStack: { foundText: boolean; line: number; column: number }[] = [];
   const tableStack: { foundCaption: boolean; line: number; column: number }[] = [];
   const emptyTagStack: { tag: string; foundText: boolean; line: number; column: number }[] = [];
-
-  // For form label rule
   const labelFors = new Set<string>();
 
   let ignoreNext = false;
@@ -43,16 +46,18 @@ export function lintHtml(html: string): LintResult[] {
         } else {
           currentColumn += text.length;
         }
-        if (anchorStack.length > 0 && text.trim().length > 0) {
+        const trimmed = text.trim();
+        if (anchorStack.length > 0 && trimmed.length > 0) {
           anchorStack[anchorStack.length - 1].foundText = true;
         }
-        if (emptyTagStack.length > 0 && text.trim().length > 0) {
+        if (emptyTagStack.length > 0 && trimmed.length > 0) {
           emptyTagStack[emptyTagStack.length - 1].foundText = true;
         }
       },
 
       onopentag(name: string, attribs: { [key: string]: string }) {
-        const tagPos = { tag: name, line: currentLine, column: currentColumn };
+        const tagName = name.toLowerCase();
+        const tagPos = { tag: tagName, line: currentLine, column: currentColumn };
         tagStack.push(tagPos);
 
         if (ignoreNext) {
@@ -60,14 +65,12 @@ export function lintHtml(html: string): LintResult[] {
           return;
         }
 
-        // Collect <label for="..."> values
-        if (name === 'label') {
+        if (tagName === 'label') {
           const forId = attribs.for;
           if (forId) labelFors.add(forId);
         }
 
-        // Rule: form controls need label or aria
-        if (['input', 'select', 'textarea'].includes(name)) {
+        if (['input', 'select', 'textarea'].includes(tagName)) {
           const id = attribs.id;
           const aria = attribs['aria-label'];
           if (!aria || aria.trim() === '') {
@@ -79,75 +82,87 @@ export function lintHtml(html: string): LintResult[] {
           }
         }
 
-        // Other rules
-        if (name === 'h1') {
+        if (tagName === 'h1') {
           h1Count++;
           if (h1Count > 1) {
             results.push({ line: tagPos.line, column: tagPos.column, message: 'Only one <h1> allowed per document' });
           }
         }
-        if (name === 'li') {
+
+        if (tagName === 'li') {
           const parent = tagStack[tagStack.length - 2];
           if (!parent || (parent.tag !== 'ul' && parent.tag !== 'ol')) {
             results.push({ line: tagPos.line, column: tagPos.column, message: '<li> must be inside a <ul> or <ol>' });
           }
         }
-        if (/^h[1-6]$/.test(name)) {
-          const level = parseInt(name[1], 10);
+
+        if (/^h[1-6]$/.test(tagName)) {
+          const level = parseInt(tagName.charAt(1), 10);
           if (sectionStack.length > 0) sectionStack[sectionStack.length - 1].foundHeading = true;
           if (lastHeadingLevel !== 0 && level > lastHeadingLevel + 1) {
-            results.push({ line: tagPos.line, column: tagPos.column, message: `⚠️ Heading level skipped: Found <${name}> after <h${lastHeadingLevel}>` });
+            results.push({ line: tagPos.line, column: tagPos.column, message: `⚠️ Heading level skipped: Found <${tagName}> after <h${lastHeadingLevel}>` });
           }
           lastHeadingLevel = level;
         }
-        if (name === 'img') {
+
+        if (tagName === 'img') {
           const alt = attribs.alt;
           if (alt === undefined || alt.trim() === '') {
             results.push({ line: tagPos.line, column: tagPos.column, message: '<img> tag missing non-empty alt attribute' });
           }
         }
-        if (name === 'a') {
+
+        if (tagName === 'a') {
           const href = attribs.href;
           anchorStack.push({ foundText: false, line: tagPos.line, column: tagPos.column });
           if (!href || href.trim() === '') {
             results.push({ line: tagPos.line, column: tagPos.column, message: '<a> tag missing non-empty href attribute' });
           }
         }
-        if (name === 'table') {
+
+        if (tagName === 'table') {
           tableStack.push({ foundCaption: false, line: tagPos.line, column: tagPos.column });
         }
-        if (name === 'caption' && tableStack.length > 0) {
+
+        if (tagName === 'caption' && tableStack.length > 0) {
           tableStack[tableStack.length - 1].foundCaption = true;
         }
-        if (inlineEmptyTags.has(name)) {
-          emptyTagStack.push({ tag: name, foundText: false, line: tagPos.line, column: tagPos.column });
+
+        if (inlineEmptyTags.has(tagName)) {
+          emptyTagStack.push({ tag: tagName, foundText: false, line: tagPos.line, column: tagPos.column });
         }
-        if (name === 'section') {
+
+        if (tagName === 'section') {
           sectionStack.push({ foundHeading: false, line: tagPos.line, column: tagPos.column });
         }
       },
 
       onclosetag(name: string) {
+        const tagName = name.toLowerCase();
         tagStack.pop();
-        if (inlineEmptyTags.has(name)) {
+
+        if (inlineEmptyTags.has(tagName)) {
           const emptyTag = emptyTagStack.pop();
           if (emptyTag && !emptyTag.foundText) {
-            results.push({ line: emptyTag.line, column: emptyTag.column, message: `<${name}> tag should not be empty` });
+            results.push({ line: emptyTag.line, column: emptyTag.column, message: `<${tagName}> tag should not be empty` });
           }
         }
-        if (name === 'a') {
+
+        if (tagName === 'a') {
           const a = anchorStack.pop();
           if (a && !a.foundText) {
             results.push({ line: a.line, column: a.column, message: '<a> tag missing link text' });
           }
         }
-        if (name === 'section') {
+
+        if (tagName === 'section') {
           const sec = sectionStack.pop();
           if (sec && !sec.foundHeading) {
             results.push({ line: sec.line, column: sec.column, message: '<section> missing heading (<h1>-<h6>)' });
           }
         }
-        if (name === 'table') {
+
+        if (tagName === 'table') {
           const tbl = tableStack.pop();
           if (tbl && !tbl.foundCaption) {
             results.push({ line: tbl.line, column: tbl.column, message: '<table> missing <caption>' });
@@ -155,11 +170,10 @@ export function lintHtml(html: string): LintResult[] {
         }
       }
     },
-    { decodeEntities: true, xmlMode: false, recognizeSelfClosing: true }
+    { decodeEntities: true, xmlMode, recognizeSelfClosing: true }
   );
 
   parser.write(html);
   parser.end();
-
   return results;
 }
