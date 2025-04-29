@@ -14,6 +14,7 @@ export function lintHtml(html: string): LintResult[] {
   let h1Count = 0;
   const sectionStack: { foundHeading: boolean; line: number; column: number }[] = [];
   const anchorStack: { foundText: boolean; line: number; column: number }[] = [];
+  const tableStack: { foundCaption: boolean; line: number; column: number }[] = [];
   let ignoreNext = false;
 
   let currentLine = 0;
@@ -48,6 +49,15 @@ export function lintHtml(html: string): LintResult[] {
         if (ignoreNext) {
           ignoreNext = false;
           return;
+        }
+
+        // Track <table> context for caption rule
+        if (name === 'table') {
+          tableStack.push({ foundCaption: false, line: tagPos.line, column: tagPos.column });
+        }
+        // Mark when we see <caption> inside a table
+        if (name === 'caption' && tableStack.length > 0) {
+          tableStack[tableStack.length - 1].foundCaption = true;
         }
 
         // Rule: Only one <h1> per document
@@ -115,6 +125,14 @@ export function lintHtml(html: string): LintResult[] {
           const sec = sectionStack.pop();
           if (sec && !sec.foundHeading) {
             results.push({ line: sec.line, column: sec.column, message: '<section> missing heading (<h1>-<h6>)' });
+          }
+        }
+
+        // Rule: <table> must have <caption>
+        if (name === 'table') {
+          const tbl = tableStack.pop();
+          if (tbl && !tbl.foundCaption) {
+            results.push({ line: tbl.line, column: tbl.column, message: '<table> missing <caption>' });
           }
         }
       }
