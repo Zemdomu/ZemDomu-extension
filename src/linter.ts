@@ -11,42 +11,50 @@ export function lintHtml(html: string): LintResult[] {
   const results: LintResult[] = [];
   const tagStack: { tag: string; line: number; column: number }[] = [];
   let lastHeadingLevel = 0;
-  let h1Count = 0; // Tracks number of <h1> occurrences
+  let h1Count = 0;
   const sectionStack: { foundHeading: boolean; line: number; column: number }[] = [];
   const anchorStack: { foundText: boolean; line: number; column: number }[] = [];
+  let ignoreNext = false;
 
   let currentLine = 0;
   let currentColumn = 0;
 
   const parser = new Parser(
     {
+      oncomment(data: string) {
+        const text = data.trim();
+        if (/^zemdomu-disable-next/.test(text)) {
+          ignoreNext = true;
+        }
+      },
+
       ontext(text: string) {
-        const lines = text.split('\n');
+        const lines = text.split("\n");
         if (lines.length > 1) {
           currentLine += lines.length - 1;
           currentColumn = lines[lines.length - 1].length;
         } else {
           currentColumn += text.length;
         }
-        // Track text inside <a>
         if (anchorStack.length > 0 && text.trim().length > 0) {
           anchorStack[anchorStack.length - 1].foundText = true;
         }
       },
 
       onopentag(name: string, attribs: { [key: string]: string }) {
-        const currentTag = { tag: name, line: currentLine, column: currentColumn };
-        tagStack.push(currentTag);
+        const tagPos = { tag: name, line: currentLine, column: currentColumn };
+        tagStack.push(tagPos);
+
+        if (ignoreNext) {
+          ignoreNext = false;
+          return;
+        }
 
         // Rule: Only one <h1> per document
         if (name === 'h1') {
-          h1Count += 1;
+          h1Count++;
           if (h1Count > 1) {
-            results.push({
-              line: currentTag.line,
-              column: currentTag.column,
-              message: 'Only one <h1> allowed per document'
-            });
+            results.push({ line: tagPos.line, column: tagPos.column, message: 'Only one <h1> allowed per document' });
           }
         }
 
@@ -54,85 +62,59 @@ export function lintHtml(html: string): LintResult[] {
         if (name === 'li') {
           const parent = tagStack[tagStack.length - 2];
           if (!parent || (parent.tag !== 'ul' && parent.tag !== 'ol')) {
-            results.push({
-              line: currentTag.line,
-              column: currentTag.column,
-              message: '<li> must be inside a <ul> or <ol>'
-            });
+            results.push({ line: tagPos.line, column: tagPos.column, message: '<li> must be inside a <ul> or <ol>' });
           }
         }
 
-        // Rule: Heading order check (no skipping levels)
+        // Rule: Heading order (no skipping levels)
         if (/^h[1-6]$/.test(name)) {
-          const headingLevel = parseInt(name.substring(1), 10);
-          // Mark section has heading
+          const level = parseInt(name[1], 10);
           if (sectionStack.length > 0) {
             sectionStack[sectionStack.length - 1].foundHeading = true;
           }
-          if (lastHeadingLevel !== 0 && headingLevel > lastHeadingLevel + 1) {
-            results.push({
-              line: currentTag.line,
-              column: currentTag.column,
-              message: `⚠️ Heading level skipped: Found <${name}> after <h${lastHeadingLevel}>`
-            });
+          if (lastHeadingLevel !== 0 && level > lastHeadingLevel + 1) {
+            results.push({ line: tagPos.line, column: tagPos.column, message: `⚠️ Heading level skipped: Found <${name}> after <h${lastHeadingLevel}>` });
           }
-          lastHeadingLevel = headingLevel;
+          lastHeadingLevel = level;
         }
 
-        // Rule: <img> must have alt attribute (non-empty)
+        // Rule: <img> must have non-empty alt
         if (name === 'img') {
           const alt = attribs.alt;
           if (alt === undefined || alt.trim() === '') {
-            results.push({
-              line: currentTag.line,
-              column: currentTag.column,
-              message: '<img> tag missing non-empty alt attribute'
-            });
+            results.push({ line: tagPos.line, column: tagPos.column, message: '<img> tag missing non-empty alt attribute' });
           }
         }
 
         // Rule: <a> must have href and link text
         if (name === 'a') {
           const href = attribs.href;
-          // Push context to track text
-          anchorStack.push({ foundText: false, line: currentTag.line, column: currentTag.column });
-          if (href === undefined || href.trim() === '') {
-            results.push({
-              line: currentTag.line,
-              column: currentTag.column,
-              message: '<a> tag missing non-empty href attribute'
-            });
+          anchorStack.push({ foundText: false, line: tagPos.line, column: tagPos.column });
+          if (!href || href.trim() === '') {
+            results.push({ line: tagPos.line, column: tagPos.column, message: '<a> tag missing non-empty href attribute' });
           }
         }
 
-        // Track <section> context
+        // Track <section>
         if (name === 'section') {
-          sectionStack.push({ foundHeading: false, line: currentTag.line, column: currentTag.column });
+          sectionStack.push({ foundHeading: false, line: tagPos.line, column: tagPos.column });
         }
       },
 
       onclosetag(name: string) {
         tagStack.pop();
-        // Check closing <a>
+
         if (name === 'a') {
-          const anchor = anchorStack.pop();
-          if (anchor && !anchor.foundText) {
-            results.push({
-              line: anchor.line,
-              column: anchor.column,
-              message: '<a> tag missing link text'
-            });
+          const a = anchorStack.pop();
+          if (a && !a.foundText) {
+            results.push({ line: a.line, column: a.column, message: '<a> tag missing link text' });
           }
         }
-        // Check closing <section>
+
         if (name === 'section') {
           const sec = sectionStack.pop();
           if (sec && !sec.foundHeading) {
-            results.push({
-              line: sec.line,
-              column: sec.column,
-              message: '<section> missing heading (<h1>-<h6>)'
-            });
+            results.push({ line: sec.line, column: sec.column, message: '<section> missing heading (<h1>-<h6>)' });
           }
         }
       }
