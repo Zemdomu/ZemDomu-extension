@@ -10,14 +10,14 @@ interface LintResult {
 export function lintHtml(html: string): LintResult[] {
   const results: LintResult[] = [];
   const tagStack: { tag: string; line: number; column: number }[] = [];
-  let lastHeadingLevel = 0; // ✅ Stores the last heading level globally
+  let lastHeadingLevel = 0; // Tracks last heading level across the document
 
   let currentLine = 0;
   let currentColumn = 0;
 
   const parser = new Parser(
     {
-      ontext(text) {
+      ontext(text: string) {
         const lines = text.split("\n");
         if (lines.length > 1) {
           currentLine += lines.length - 1;
@@ -27,16 +27,15 @@ export function lintHtml(html: string): LintResult[] {
         }
       },
 
-      onopentag(name) {
+      onopentag(name: string, attribs: { [key: string]: string }) {
         const currentTag = {
           tag: name,
           line: currentLine,
           column: currentColumn,
         };
-
         tagStack.push(currentTag);
 
-        // 🟢 Rule: <li> must be inside <ul> or <ol>
+        // Rule: <li> must be inside <ul> or <ol>
         if (name === 'li') {
           const parent = tagStack[tagStack.length - 2];
           if (!parent || (parent.tag !== 'ul' && parent.tag !== 'ol')) {
@@ -48,10 +47,9 @@ export function lintHtml(html: string): LintResult[] {
           }
         }
 
-        // 🔵 Rule: Heading order check (no skipping levels)
+        // Rule: Heading order check (no skipping levels)
         if (/^h[1-6]$/.test(name)) {
           const headingLevel = parseInt(name.substring(1), 10);
-
           if (lastHeadingLevel !== 0 && headingLevel > lastHeadingLevel + 1) {
             results.push({
               line: currentTag.line,
@@ -59,8 +57,19 @@ export function lintHtml(html: string): LintResult[] {
               message: `⚠️ Heading level skipped: Found <${name}> after <h${lastHeadingLevel}>`
             });
           }
+          lastHeadingLevel = headingLevel;
+        }
 
-          lastHeadingLevel = headingLevel; // ✅ Store the last seen heading
+        // Rule: <img> must have alt attribute (non-empty)
+        if (name === 'img') {
+          const alt = attribs.alt;
+          if (alt === undefined || alt.trim() === '') {
+            results.push({
+              line: currentTag.line,
+              column: currentTag.column,
+              message: '<img> tag missing non-empty alt attribute'
+            });
+          }
         }
       },
 
