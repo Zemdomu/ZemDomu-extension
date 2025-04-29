@@ -10,7 +10,8 @@ interface LintResult {
 export function lintHtml(html: string): LintResult[] {
   const results: LintResult[] = [];
   const tagStack: { tag: string; line: number; column: number }[] = [];
-  let lastHeadingLevel = 0; // Tracks last heading level across the document
+  let lastHeadingLevel = 0;
+  const sectionStack: { foundHeading: boolean; line: number; column: number }[] = [];
 
   let currentLine = 0;
   let currentColumn = 0;
@@ -18,7 +19,7 @@ export function lintHtml(html: string): LintResult[] {
   const parser = new Parser(
     {
       ontext(text: string) {
-        const lines = text.split("\n");
+        const lines = text.split('\n');
         if (lines.length > 1) {
           currentLine += lines.length - 1;
           currentColumn = lines[lines.length - 1].length;
@@ -28,12 +29,13 @@ export function lintHtml(html: string): LintResult[] {
       },
 
       onopentag(name: string, attribs: { [key: string]: string }) {
-        const currentTag = {
-          tag: name,
-          line: currentLine,
-          column: currentColumn,
-        };
+        const currentTag = { tag: name, line: currentLine, column: currentColumn };
         tagStack.push(currentTag);
+
+        // Track <section> context
+        if (name === 'section') {
+          sectionStack.push({ foundHeading: false, line: currentLine, column: currentColumn });
+        }
 
         // Rule: <li> must be inside <ul> or <ol>
         if (name === 'li') {
@@ -50,6 +52,10 @@ export function lintHtml(html: string): LintResult[] {
         // Rule: Heading order check (no skipping levels)
         if (/^h[1-6]$/.test(name)) {
           const headingLevel = parseInt(name.substring(1), 10);
+          // Mark section has heading
+          if (sectionStack.length > 0) {
+            sectionStack[sectionStack.length - 1].foundHeading = true;
+          }
           if (lastHeadingLevel !== 0 && headingLevel > lastHeadingLevel + 1) {
             results.push({
               line: currentTag.line,
@@ -73,8 +79,18 @@ export function lintHtml(html: string): LintResult[] {
         }
       },
 
-      onclosetag() {
+      onclosetag(name: string) {
         tagStack.pop();
+        if (name === 'section') {
+          const sec = sectionStack.pop();
+          if (sec && !sec.foundHeading) {
+            results.push({
+              line: sec.line,
+              column: sec.column,
+              message: '<section> missing heading (<h1>-<h6>)'
+            });
+          }
+        }
       }
     },
     { decodeEntities: true, xmlMode: false, recognizeSelfClosing: true }
