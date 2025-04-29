@@ -7,7 +7,6 @@
     "type": "git",
     "url": "https://github.com/Zelcus/ZemDomu.git"
   },
-
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.98.0"
@@ -35,10 +34,14 @@
     "package": "vsce package"
   },
   "devDependencies": {
+    "@babel/parser": "^7.27.0",
+    "@babel/traverse": "^7.27.0",
+    "@babel/types": "^7.27.0",
+    "@types/babel__traverse": "^7.20.7",
     "@types/htmlparser2": "^4.1.0",
     "@types/vscode": "^1.98.0",
-    "typescript": "^5.8.2",
-    "@vscode/vsce": "^2.0.0"
+    "@vscode/vsce": "^2.0.0",
+    "typescript": "^5.8.2"
   },
   "dependencies": {
     "htmlparser2": "^10.0.0"
