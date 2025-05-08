@@ -2,9 +2,16 @@
   <img src="images/icon.png" width="100" alt="ZemDomu logo" />
 </p>
 
-# ZemDomu
+<h1 align="center">ZemDomu</h1>
 
-**ZemDomu** is a lightweight VS Code extension that helps you write **semantic HTML** by catching structural issues in real-time. It focuses on accessibility, SEO, and clean markup—without getting in the way.
+<p align="center">
+  <em>Semantic HTML linting for a cleaner, more accessible web</em>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" />
+  <img src="https://img.shields.io/visual-studio-marketplace/v/ZachariasErydBerlin.zemdomu?label=VS%20Code" alt="VS Code Marketplace">
+</p>
 
 ---
 
@@ -21,17 +28,25 @@
 
 ---
 
+## ❓ Why ZemDomu?
+
+Most HTML linters focus on syntax or style — **ZemDomu** goes deeper by catching subtle issues that affect:
+
+- **Accessibility** (screen reader compatibility)
+- **SEO** (logical heading structure)
+- **Semantic structure** (clean, meaningful markup)
+
+It runs automatically on save and integrates into the **Problems tab** for a seamless workflow.
+
+---
+
 ## 🚀 Getting Started
 
 ### Install
 
-Coming soon to the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/)!
+Install directly from the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ZachariasErydBerlin.zemdomu)
 
-In the meantime:
-
-1. Clone this repo
-2. Run `npm install`
-3. Press `F5` in VS Code to launch the extension host
+Or search for **ZemDomu** in the VS Code Extensions view.
 
 ### Usage
 

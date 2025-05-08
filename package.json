@@ -1,7 +1,7 @@
 {
   "name": "zemdomu",
   "displayName": "ZemDomu",
-  "publisher": "Zelcus",
+  "publisher": "ZachariasErydBerlin",
   "description": "A semantic linter for HTML and JSX/TSX",
   "repository": {
     "type": "git",
