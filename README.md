@@ -30,7 +30,7 @@ Coming soon to the [Visual Studio Code Marketplace](https://marketplace.visualst
 In the meantime:
 
 1. Clone this repo
-2. Run `yarn install`
+2. Run `npm install`
 3. Press `F5` in VS Code to launch the extension host
 
 ### Usage
@@ -50,8 +50,8 @@ Support for `.zemdomurc` config files to enable/disable rules.
 ## 🛠 Development
 
 ```bash
-yarn install
-yarn compile
+npm install
+npm compile
 ```
 
 ## 📄 License
