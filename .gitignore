@@ -1,7 +1,6 @@
 # Node
 node_modules/
 dist/
-.vscode/
 out/
 *.log
 
@@ -11,3 +10,7 @@ out/
 # OS junk
 .DS_Store
 Thumbs.db
+
+# Dev/editor files
+.vscode/
+yarn.lock
