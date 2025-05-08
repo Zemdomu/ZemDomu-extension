@@ -51,7 +51,7 @@ Support for `.zemdomurc` config files to enable/disable rules.
 
 ```bash
 npm install
-npm compile
+npm run compile
 ```
 
 ## 📄 License
