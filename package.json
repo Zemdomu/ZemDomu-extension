@@ -54,5 +54,10 @@
     "@babel/parser": "^7.27.0",
     "@babel/traverse": "^7.27.0",
     "@babel/types": "^7.27.0"
+  },
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#2D2D2D",
+    "theme": "dark"
   }
 }
