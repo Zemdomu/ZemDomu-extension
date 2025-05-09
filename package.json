@@ -17,7 +17,8 @@
   "activationEvents": [
     "onLanguage:html",
     "onLanguage:javascriptreact",
-    "onLanguage:typescriptreact"
+    "onLanguage:typescriptreact",
+    "onCommand:zemdomu.lintWorkspace"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -34,7 +35,68 @@
         "mac": "cmd+alt+z",
         "when": "editorTextFocus"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "ZemDomu Settings",
+      "properties": {
+        "zemdomu.run": {
+          "type": "string",
+          "enum": ["onSave", "onType", "manual", "disabled"],
+          "default": "onSave",
+          "description": "When to run semantic linting:\n• onSave — after each file save\n• onType — as you type\n• manual — only via the Scan Workspace command\n• disabled — never run automatically"
+        },
+        "zemdomu.rules.requireSectionHeading": {
+          "type": "boolean",
+          "default": true,
+          "description": "Emit a warning when a <section> has no heading."
+        },
+        "zemdomu.rules.enforceHeadingOrder": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn if heading levels skip (e.g. <h3> after <h1> without <h2>)."
+        },
+        "zemdomu.rules.singleH1": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn if more than one <h1> is used in a document."
+        },
+        "zemdomu.rules.requireAltText": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when an <img> tag is missing a non-empty alt attribute."
+        },
+        "zemdomu.rules.requireLabelForFormControls": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when a form control (input, select, textarea) doesn't have an associated label."
+        },
+        "zemdomu.rules.enforceListNesting": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when an <li> element is not a direct child of <ul> or <ol>."
+        },
+        "zemdomu.rules.requireLinkText": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when an <a> tag doesn't contain any text content."
+        },
+        "zemdomu.rules.requireTableCaption": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when a <table> is missing a <caption> element."
+        },
+        "zemdomu.rules.preventEmptyInlineTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when inline tags (strong, em, b, i, etc.) are empty."
+        },
+        "zemdomu.rules.requireHrefOnAnchors": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when an <a> tag is missing a non-empty href attribute."
+        }
+      }
+    }
   },
   "scripts": {
     "compile": "tsc -p ./tsconfig.json",
@@ -42,7 +104,6 @@
     "package": "vsce package"
   },
   "devDependencies": {
-  
     "@types/babel__traverse": "^7.20.7",
     "@types/htmlparser2": "^4.1.0",
     "@types/vscode": "^1.98.0",
