@@ -8,9 +8,11 @@ export interface LintResult {
   line: number;
   column: number;
   message: string;
+  filePath?: string;
 }
 
 export interface LinterOptions {
+  crossComponentAnalysis: boolean;
   rules: {
     requireSectionHeading: boolean;
     enforceHeadingOrder: boolean;
@@ -27,6 +29,7 @@ export interface LinterOptions {
 
 // Default options
 const defaultOptions: LinterOptions = {
+  crossComponentAnalysis: true,
   rules: {
     requireSectionHeading: true,
     enforceHeadingOrder: true,

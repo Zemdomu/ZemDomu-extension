@@ -1,12 +1,23 @@
-.gitignore
+# Node + Yarn
 node_modules/@types
 node_modules/@babel/parser/lib/**/*.map
 node_modules/@babel/traverse/lib/**/*.map
 node_modules/@babel/types/lib/**/*.map
 yarn.lock
-.vscode/
+
+# Source files
 src/
-tsconfig.json
 *.ts
 *.tsx
+tsconfig.json
+
+# Build/test/config files
+.vscode/
 .vscode-test/
+*.map
+*.test.*
+*.spec.*
+
+# Git stuff
+.git/
+.gitignore

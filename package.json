@@ -2,12 +2,12 @@
   "name": "zemdomu",
   "displayName": "ZemDomu",
   "publisher": "ZachariasErydBerlin",
-  "description": "A semantic linter for HTML and JSX/TSX",
+  "description": "A semantic linter for HTML and JSX/TSX with cross-component analysis",
   "repository": {
     "type": "git",
     "url": "https://github.com/Zelcus/ZemDomu.git"
   },
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.98.0"
   },
@@ -41,14 +41,24 @@
       "properties": {
         "zemdomu.run": {
           "type": "string",
-          "enum": ["onSave", "onType", "manual", "disabled"],
+          "enum": [
+            "onSave",
+            "onType",
+            "manual",
+            "disabled"
+          ],
           "default": "onSave",
           "description": "When to run semantic linting:\n• onSave — after each file save\n• onType — as you type\n• manual — only via the Scan Workspace command\n• disabled — never run automatically"
+        },
+        "zemdomu.crossComponentAnalysis": {
+          "type": "boolean",
+          "default": true,
+          "description": "Analyze and detect semantic issues across component boundaries"
         },
         "zemdomu.rules.requireSectionHeading": {
           "type": "boolean",
           "default": true,
-          "description": "Emit a warning when a <section> has no heading."
+          "description": "Warn when a <section> has no heading."
         },
         "zemdomu.rules.enforceHeadingOrder": {
           "type": "boolean",
@@ -106,6 +116,7 @@
   "devDependencies": {
     "@types/babel__traverse": "^7.20.7",
     "@types/htmlparser2": "^4.1.0",
+    "@types/node": "^22.15.17",
     "@types/vscode": "^1.98.0",
     "@vscode/vsce": "^2.0.0",
     "typescript": "^5.8.2"
