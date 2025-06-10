@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "npm install",
+      "type": "shell",
+      "command": "npm install",
+      "group": "build"
+    },
+    {
+      "label": "npm compile",
+      "type": "shell",
+      "command": "npm run compile",
+      "group": "build"
+    },
+    {
+      "label": "npm package",
+      "type": "shell",
+      "command": "npm run package",
+      "group": "build"
+    },
+    {
+      "label": "npm publish extension",
+      "type": "shell",
+      "command": "npm install && npm run compile && npm run package",
+      "group": { "kind": "build", "isDefault": true }
+    }
+  ]
+}

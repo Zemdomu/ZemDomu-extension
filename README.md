@@ -87,8 +87,15 @@ For JSX/TSX files use the JSX comment syntax, e.g. `{/* zemdomu-disable */}`.
 ## 🛠 Development
 
 ```bash
+npm run publish-all
+```
+
+Individual steps if you prefer to run them separately:
+
+```bash
 npm install
 npm run compile
+npm run package
 ```
 
 ## 📄 License
