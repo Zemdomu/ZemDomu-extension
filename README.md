@@ -15,76 +15,9 @@
 
 ---
 
-## ✨ Features
+This repository contains the source code for ZemDomu, a VS Code extension that checks for semantic HTML issues. If you're looking for installation and usage instructions, head over to the [User Guide](docs/USER_GUIDE.md).
 
-- 🟢 Warns when `<li>` is not inside `<ul>` or `<ol>`
-- 🔵 Ensures correct heading order (`<h1> → <h2> → <h3>`…)
-- 🟠 Flags missing `alt` attributes on `<img>`
-- 🟣 Ensures `<button>` elements have accessible text
-- 🟤 Requires `<iframe>` tags to include a `title`
-- 🔶 Enforces `lang` on the `<html>` element
-- 🔷 Checks `<input type="image">` for `alt` text
-- 🔴 Detects form fields missing `aria-label` or `<label for="">`
-- ⚠️ Highlights empty `<strong>`, `<em>`, and similar tags
-- 📛 Verifies `<a>` tags have both `href` and link text
-- 📚 Confirms `<section>` includes a heading
-- 🧩 Works with `.html`, `.jsx`, and `.tsx` files
-- ⚡ Caches results after the first scan so subsequent saves only re-check the current file
-- 💡 Quick fixes for simple issues like missing `alt` attributes
-
----
-
-## ❓ Why ZemDomu?
-
-Most HTML linters focus on syntax or style — **ZemDomu** goes deeper by catching subtle issues that affect:
-
-- **Accessibility** (screen reader compatibility)
-- **SEO** (logical heading structure)
-- **Semantic structure** (clean, meaningful markup)
-
-It runs automatically on save and integrates into the **Problems tab** for a seamless workflow.
-
----
-
-## 🚀 Getting Started
-
-### Install
-
-Install directly from the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ZachariasErydBerlin.zemdomu)
-
-Or search for **ZemDomu** in the VS Code Extensions view.
-
-### Usage
-
-1. Open an `.html`, `.jsx`, or `.tsx` file
-2. Save the file
-3. Semantic issues appear in the **Problems** tab (`Ctrl+Shift+M`)
-
----
-
-## ⚙️ Configuration
-
-ZemDomu can be configured through VS Code settings. Search for **ZemDomu** in
-the Settings UI or edit `settings.json` directly:
-
-- `zemdomu.run` – control when linting runs (`onSave`, `onType`, `manual`, or
-  `disabled`)
-- `zemdomu.crossComponentAnalysis` – analyze JSX components across files
-- `zemdomu.rules.*` – enable or disable individual semantic rules
-
-### Inline Rule Controls
-
-You can selectively disable ZemDomu using special comments:
-
-- `<!-- zemdomu-disable-next -->` – skip linting for the next element
-- `<!-- zemdomu-disable -->` – start a block where linting is disabled
-- `<!-- zemdomu-enable -->` – re-enable linting after a disabled block
-
-For JSX/TSX files use the JSX comment syntax, e.g. `{/* zemdomu-disable */}`.
-
----
-
-## 🛠 Development
+## Development
 
 ```bash
 npm run publish-all
@@ -98,6 +31,6 @@ npm run compile
 npm run package
 ```
 
-## 📄 License
+## License
 
 MIT © 2025 Zacharias Eryd Berlin
