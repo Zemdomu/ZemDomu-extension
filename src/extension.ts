@@ -14,18 +14,18 @@ export function activate(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration('zemdomu');
     return {
       rules: {
-        requireSectionHeading: config.get<boolean>('rules.requireSectionHeading', true),
-        enforceHeadingOrder: config.get<boolean>('rules.enforceHeadingOrder', true),
-        singleH1: config.get<boolean>('rules.singleH1', true),
-        requireAltText: config.get<boolean>('rules.requireAltText', true),
-        requireLabelForFormControls: config.get<boolean>('rules.requireLabelForFormControls', true),
-        enforceListNesting: config.get<boolean>('rules.enforceListNesting', true),
-        requireLinkText: config.get<boolean>('rules.requireLinkText', true),
-        requireTableCaption: config.get<boolean>('rules.requireTableCaption', true),
-        preventEmptyInlineTags: config.get<boolean>('rules.preventEmptyInlineTags', true),
-        requireHrefOnAnchors: config.get<boolean>('rules.requireHrefOnAnchors', true)
+requireSectionHeading: config.get('rules.requireSectionHeading', true),
+        enforceHeadingOrder: config.get('rules.enforceHeadingOrder', true),
+        singleH1: config.get('rules.singleH1', true),
+        requireAltText: config.get('rules.requireAltText', true),
+        requireLabelForFormControls: config.get('rules.requireLabelForFormControls', true),
+        enforceListNesting: config.get('rules.enforceListNesting', true),
+        requireLinkText: config.get('rules.requireLinkText', true),
+        requireTableCaption: config.get('rules.requireTableCaption', true),
+        preventEmptyInlineTags: config.get('rules.preventEmptyInlineTags', true),
+        requireHrefOnAnchors: config.get('rules.requireHrefOnAnchors', true)
       },
-      crossComponentAnalysis: config.get<boolean>('crossComponentAnalysis', true)
+      crossComponentAnalysis: config.get('crossComponentAnalysis', true)
     };
   }
 
@@ -142,7 +142,7 @@ export function activate(context: vscode.ExtensionContext) {
     // tear down old
     saveDisp?.dispose();
     typeDisp?.dispose();
-    const runMode = vscode.workspace.getConfiguration('zemdomu').get<'onSave'|'onType'|'manual'|'disabled'>('run', 'onSave');
+    const runMode = vscode.workspace.getConfiguration('zemdomu').get('run', 'onSave');
     if (runMode === 'onSave') {
       console.log('[ZemDomu] onSave enabled');
       saveDisp = vscode.workspace.onDidSaveTextDocument(doc => {
