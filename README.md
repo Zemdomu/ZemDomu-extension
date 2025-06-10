@@ -26,6 +26,7 @@
 - 📚 Confirms `<section>` includes a heading
 - 🧩 Works with `.html`, `.jsx`, and `.tsx` files
 - ⚡ Caches results after the first scan so subsequent saves only re-check the current file
+- 💡 Quick fixes for simple issues like missing `alt` attributes
 
 ---
 

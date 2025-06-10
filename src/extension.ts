@@ -3,6 +3,64 @@ import * as vscode from 'vscode';
 import { lintHtml, LinterOptions, LintResult } from './linter';
 import { ComponentAnalyzer } from './component-analyzer';
 
+class ZemCodeActionProvider implements vscode.CodeActionProvider {
+  provideCodeActions(
+    document: vscode.TextDocument,
+    _range: vscode.Range,
+    context: vscode.CodeActionContext
+  ): vscode.ProviderResult<(vscode.CodeAction | vscode.Command)[]> {
+    const actions: vscode.CodeAction[] = [];
+
+    for (const diag of context.diagnostics) {
+      const line = document.lineAt(diag.range.start.line);
+      const lineText = line.text;
+      const gt = lineText.indexOf('>', diag.range.start.character);
+      if (gt === -1) {
+        continue;
+      }
+      const insertPos = new vscode.Position(
+        diag.range.start.line,
+        lineText[gt - 1] === '/' ? gt - 1 : gt
+      );
+
+      if (diag.message.includes('img') && diag.message.includes('alt')) {
+        const edit = new vscode.WorkspaceEdit();
+        edit.insert(document.uri, insertPos, ' alt=""');
+        const action = new vscode.CodeAction(
+          'Add empty alt attribute',
+          vscode.CodeActionKind.QuickFix
+        );
+        action.diagnostics = [diag];
+        action.edit = edit;
+        actions.push(action);
+      } else if (diag.message.includes('href attribute')) {
+        const edit = new vscode.WorkspaceEdit();
+        edit.insert(document.uri, insertPos, ' href=""');
+        const action = new vscode.CodeAction(
+          'Add empty href attribute',
+          vscode.CodeActionKind.QuickFix
+        );
+        action.diagnostics = [diag];
+        action.edit = edit;
+        actions.push(action);
+      } else if (diag.message.includes('missing <caption>')) {
+        const capPos = new vscode.Position(diag.range.start.line, gt + 1);
+        const edit = new vscode.WorkspaceEdit();
+        edit.insert(document.uri, capPos, '\n  <caption></caption>');
+        const action = new vscode.CodeAction(
+          'Add empty <caption>',
+          vscode.CodeActionKind.QuickFix
+        );
+        action.diagnostics = [diag];
+        action.edit = edit;
+        actions.push(action);
+      }
+    }
+
+    return actions;
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
   const diagnostics = vscode.languages.createDiagnosticCollection('zemdomu');
   let saveDisp: vscode.Disposable | undefined;
@@ -210,11 +268,18 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     }
   });
 
+    const actionProvider = vscode.languages.registerCodeActionsProvider(
+    ['html', 'javascriptreact', 'typescriptreact'],
+    new ZemCodeActionProvider(),
+    { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
+  );
+
   // Add all subscriptions
   context.subscriptions.push(
     lintCommand,
     configWatcher,
-    diagnostics
+    diagnostics,
+    actionProvider
   );
 
   // Initial setup
