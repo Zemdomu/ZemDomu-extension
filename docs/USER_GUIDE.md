@@ -18,6 +18,11 @@ npm run bundle
 npm run package
 ```
 
+The bundling step produces `dist/extension.js` with all runtime code inlined.
+`node_modules/` is excluded via `.vscodeignore`, keeping the packaged
+extension small.
+
+
 ## License
 
 MIT © 2025 Zacharias Eryd Berlin
