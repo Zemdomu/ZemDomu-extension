@@ -56,9 +56,15 @@ Or search for **ZemDomu** in the VS Code Extensions view.
 
 ---
 
-## ⚙️ Configuration (Coming soon)
+## ⚙️ Configuration
 
-Support for `.zemdomurc` config files to enable/disable rules.
+ZemDomu can be configured through VS Code settings. Search for **ZemDomu** in
+the Settings UI or edit `settings.json` directly:
+
+- `zemdomu.run` – control when linting runs (`onSave`, `onType`, `manual`, or
+  `disabled`)
+- `zemdomu.crossComponentAnalysis` – analyze JSX components across files
+- `zemdomu.rules.*` – enable or disable individual semantic rules
 
 ---
 
@@ -67,6 +73,7 @@ Support for `.zemdomurc` config files to enable/disable rules.
 ```bash
 npm install
 npm run compile
+npm test
 ```
 
 ## 📄 License

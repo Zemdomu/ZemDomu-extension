@@ -203,7 +203,7 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
 
     traverse(ast, {
       JSXElement: {
-        enter(path: NodePath<t.JSXElement>) {
+        enter(path: NodePath) {
           const opening = path.node.openingElement;
           if (!t.isJSXIdentifier(opening.name)) return;
           const tag = opening.name.name.toLowerCase();
@@ -300,7 +300,7 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
             sectionStack.push({ ...pos, foundHeading: false });
           }
         },
-        exit(path: NodePath<t.JSXElement>) {
+        exit(path: NodePath) {
           const opening = path.node.openingElement;
           if (!t.isJSXIdentifier(opening.name) || !opening.loc) return;
           const tag = opening.name.name.toLowerCase();
@@ -321,9 +321,11 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
             if (s && !s.foundHeading) results.push({ ...s, message: '<section> missing heading (<h1>-<h6>)' }); 
           }
           
-          if (options.rules.requireTableCaption && tag === 'table') { 
-            const tble = tableStack.pop(); 
-            if (tble && !tble.foundCaption) results.push({ ...tble, message: '<table> missing <caption>' }); 
+          if (options.rules.requireTableCaption && tag === 'table') {
+            const tableEntry = tableStack.pop();
+            if (tableEntry && !tableEntry.foundCaption) {
+              results.push({ ...tableEntry, message: '<table> missing <caption>' });
+            }
           }
         }
       },

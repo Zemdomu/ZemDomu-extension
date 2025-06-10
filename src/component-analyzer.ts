@@ -45,7 +45,7 @@ export class ComponentAnalyzer {
     this.options = options;
   }
 
-  async analyzeFile(uri: vscode.Uri): Promise<ComponentDefinition | null> {
+  async analyzeFile(uri: any): Promise<ComponentDefinition | null> {
     try {
       const document = await vscode.workspace.openTextDocument(uri);
       const content = document.getText();

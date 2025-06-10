@@ -111,7 +111,8 @@
   "scripts": {
     "compile": "tsc -p ./tsconfig.json",
     "watch": "tsc -w",
-    "package": "vsce package"
+    "package": "vsce package",
+    "test": "npm run compile && node tests/run.js"
   },
   "devDependencies": {
     "@types/babel__traverse": "^7.20.7",
