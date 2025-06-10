@@ -78,16 +78,6 @@ You can selectively disable ZemDomu using special comments:
 
 For JSX/TSX files use the JSX comment syntax, e.g. `{/* zemdomu-disable */}`.
 
-## Development
-
-Run the test suite to compile the extension, bundle it and track the bundle size:
-
-```bash
-npm test
-```
-
-The `package-size.test.js` script prints the size of `dist/extension.js` so you can monitor changes over time.
-
----
+## License
 
 MIT © 2025 Zacharias Eryd Berlin
