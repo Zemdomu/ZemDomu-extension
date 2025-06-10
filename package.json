@@ -215,7 +215,7 @@
   "scripts": {
     "compile": "tsc -p ./tsconfig.json",
     "watch": "tsc -w",
-    "package": "vsce package",
+    "package": "vsce package --readme-path docs/USER_GUIDE.md",
     "test": "echo 'No tests'",
     "publish-all": "npm install && npm run compile && npm run package"
   },
