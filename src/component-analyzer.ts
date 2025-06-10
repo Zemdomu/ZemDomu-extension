@@ -153,7 +153,8 @@ export class ComponentAnalyzer {
             {
               line: heading.line,
               column: heading.column,
-              message: `Heading level skipped: <h${heading.level}> after <h${lastHeadingLevel}>`
+              message: `Heading level skipped: <h${heading.level}> after <h${lastHeadingLevel}>`,
+              rule: 'enforceHeadingOrder'
             }
           ]);
         }
@@ -165,7 +166,7 @@ export class ComponentAnalyzer {
     if (this.options.rules.singleH1) {
       const h1Results: LintResult[] = componentDef.headings
         .filter(h => h.level === 1)
-        .map(h => ({ line: h.line, column: h.column, message: '<h1>' }));
+        .map(h => ({ line: h.line, column: h.column, message: '<h1>', rule: 'singleH1' }));
       if (h1Results.length > 0) {
         componentDef.issues.set('singleH1', h1Results);
       }
@@ -208,7 +209,7 @@ export class ComponentAnalyzer {
 
   registerComponent(component: ComponentDefinition, issues: LintResult[]): void {
     for (const issue of issues) {
-      const rule = this.getRuleType(issue.message);
+      const rule = issue.rule || this.getRuleType(issue.message);
       if (!component.issues.has(rule)) component.issues.set(rule, []);
       component.issues.get(rule)!.push(issue);
     }
@@ -255,15 +256,17 @@ export class ComponentAnalyzer {
               filePath: entry.filePath,
               line: location.line,
               column: location.column,
-              message: `Multiple <h1> tags: component '${comp.name}' brings an extra <h1>. Use a lower-level heading.`
+              message: `Multiple <h1> tags: component '${comp.name}' brings an extra <h1>. Use a lower-level heading.`,
+              rule: 'singleH1'
             });
           } else {
             const issue = comp.issues.get('singleH1')![0];
-            results.push({ 
-              filePath: comp.filePath, 
-              line: issue.line, 
+            results.push({
+              filePath: comp.filePath,
+              line: issue.line,
               column: issue.column,
-              message: `Multiple <h1> across components - consider using lower-level headings.`
+              message: `Multiple <h1> across components - consider using lower-level headings.`,
+              rule: 'singleH1'
             });
           }
         }
@@ -322,7 +325,8 @@ export class ComponentAnalyzer {
           filePath: heading.usageLocation?.filePath || heading.heading.filePath,
           line: heading.usageLocation?.line || heading.heading.line,
           column: heading.usageLocation?.column || heading.heading.column,
-          message: `Cross-component heading level skipped: <h${heading.heading.level}> after <h${lastLevel}>`
+          message: `Cross-component heading level skipped: <h${heading.heading.level}> after <h${lastLevel}>`,
+          rule: 'enforceHeadingOrder'
         });
       }
       lastLevel = heading.heading.level;

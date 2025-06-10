@@ -88,6 +88,12 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     };
   }
 
+  function getRuleSeverity(rule: string): vscode.DiagnosticSeverity {
+    const config = vscode.workspace.getConfiguration('zemdomu');
+    const setting = config.get(`severity.${rule}`, 'warning') as string;
+    return setting === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning;
+  }
+
   async function lintDocument(uri: vscode.Uri, xmlMode: boolean) {
     try {
       const text = (await vscode.workspace.openTextDocument(uri)).getText();
@@ -108,7 +114,11 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       const diags = results.map(r => {
         const start = new vscode.Position(r.line, r.column);
         const end = new vscode.Position(r.line, r.column + 1);
-        return new vscode.Diagnostic(new vscode.Range(start, end), r.message, vscode.DiagnosticSeverity.Warning);
+        return new vscode.Diagnostic(
+          new vscode.Range(start, end),
+          r.message,
+          getRuleSeverity(r.rule)
+        );
       });
       diagnostics.set(uri, diags);
     } catch (e) {
@@ -147,7 +157,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       const diags = results.map(r => {
         const start = new vscode.Position(r.line, r.column);
         const end = new vscode.Position(r.line, r.column + 1);
-        return new vscode.Diagnostic(new vscode.Range(start, end), r.message, vscode.DiagnosticSeverity.Warning);
+        return new vscode.Diagnostic(new vscode.Range(start, end), r.message, getRuleSeverity(r.rule));
       });
       diagnostics.set(uri, diags);
     }));
@@ -182,9 +192,9 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
           const start = new vscode.Position(r.line, r.column);
           const end = new vscode.Position(r.line, r.column + 1);
           return new vscode.Diagnostic(
-            new vscode.Range(start, end), 
+            new vscode.Range(start, end),
             r.message,
-            vscode.DiagnosticSeverity.Warning
+            getRuleSeverity(r.rule)
           );
         });
         
