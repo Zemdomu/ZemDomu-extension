@@ -21,3 +21,17 @@ tsconfig.json
 # Git stuff
 .git/
 .gitignore
+
+# Documentation and tests
+docs/
+tests/
+
+# Type declaration files
+types/
+
+# GitHub metadata
+.github/
+
+# Non-icon images
+images/*
+!images/icon.png
