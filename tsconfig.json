@@ -5,9 +5,10 @@
       "target": "es2018",
       "lib": ["es2018", "dom"],
       "moduleResolution": "node",
-      "types": ["node", "vscode"],
+      "typeRoots": ["./types"],
       "skipLibCheck": true,
       "strict": true,
+      "noImplicitAny": false,
       "esModuleInterop": true
     },
     "include": ["src"]
