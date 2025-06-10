@@ -30,6 +30,8 @@ export interface LinterOptions {
     requireIframeTitle: boolean;
     requireHtmlLang: boolean;
     requireImageInputAlt: boolean;
+    requireMain: boolean;
+    requireNavLinks: boolean;
   };
 }
 
@@ -50,7 +52,9 @@ const defaultOptions: LinterOptions = {
     requireButtonText: true,
     requireIframeTitle: true,
     requireHtmlLang: true,
-    requireImageInputAlt: true
+    requireImageInputAlt: true,
+    requireMain: true,
+    requireNavLinks: true
   }
 };
 
@@ -82,6 +86,8 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
   let curCol = 0;
   const inlineTags = new Set(['strong','em','b','i','u','small','mark','del','ins']);
   let htmlSeen = false;
+  let foundMain = false;
+  const navStack: Array<{ line: number; column: number; hasLink: boolean }> = [];
 
   const parser = new Parser({
     oncomment(data) {
@@ -117,6 +123,11 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
 
       // labels
       if (tag === 'label' && attrs.for) labels.add(attrs.for);
+
+      // structural tags
+      if (tag === 'main') foundMain = true;
+      if (tag === 'nav') navStack.push({ line: curLine, column: curCol, hasLink: false });
+      if (tag === 'a' && navStack.length) navStack[navStack.length - 1].hasLink = true;
 
       // html lang
       if (options.rules.requireHtmlLang && tag === 'html' && !htmlSeen) {
@@ -229,6 +240,13 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
         if (a && !a.foundText) results.push({ line: a.line, column: a.column, message: '<a> tag missing link text', rule: 'requireLinkText' });
       }
 
+      if (tag === 'nav') {
+        const n = navStack.pop();
+        if (n && options.rules.requireNavLinks && !n.hasLink) {
+          results.push({ line: n.line, column: n.column, message: '<nav> contains no links', rule: 'requireNavLinks' });
+        }
+      }
+
       if (options.rules.requireButtonText && tag === 'button') {
         const b = buttonStack.pop();
         if (b && !b.foundText) results.push({ line: b.line, column: b.column, message: '<button> missing accessible text', rule: 'requireButtonText' });
@@ -248,6 +266,18 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
 
   parser.write(html);
   parser.end();
+
+  if (options.rules.requireNavLinks) {
+    // Unclosed navs shouldn't happen, but flush just in case
+    while (navStack.length) {
+      const n = navStack.pop();
+      if (n && !n.hasLink) results.push({ line: n.line, column: n.column, message: '<nav> contains no links', rule: 'requireNavLinks' });
+    }
+  }
+
+  if (options.rules.requireMain && !foundMain) {
+    results.push({ line: 0, column: 0, message: 'Document missing <main> element', rule: 'requireMain' });
+  }
   return results;
 }
 
@@ -296,6 +326,8 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
     const emptyStack: Array<{ tag: string; foundText: boolean; line: number; column: number }> = [];
     const labels = new Set<string>();
     let htmlSeen = false;
+    let foundMain = false;
+    const navStack: Array<{ line: number; column: number; hasLink: boolean }> = [];
 
     traverse(ast, {
       JSXElement: {
@@ -314,6 +346,10 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
               if (t.isStringLiteral(attr.value)) labels.add(attr.value.value);
             }
           });
+
+          if (tag === 'main') foundMain = true;
+          if (tag === 'nav') navStack.push({ line: pos.line, column: pos.column, hasLink: false });
+          if (tag === 'a' && navStack.length) navStack[navStack.length - 1].hasLink = true;
 
           if (options.rules.requireHtmlLang && tag === 'html' && !htmlSeen) {
             htmlSeen = true;
@@ -473,6 +509,13 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
             if (a && !a.foundText) results.push({ ...a, message: '<a> tag missing link text', rule: 'requireLinkText' });
           }
 
+          if (tag === 'nav') {
+            const n = navStack.pop();
+            if (n && options.rules.requireNavLinks && !n.hasLink) {
+              results.push({ ...n, message: '<nav> contains no links', rule: 'requireNavLinks' });
+            }
+          }
+
           if (options.rules.requireButtonText && tag === 'button') {
             const b = buttonStack.pop();
             if (b && !b.foundText) results.push({ ...b, message: '<button> missing accessible text', rule: 'requireButtonText' });
@@ -518,6 +561,17 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
         }
       }
     });
+
+    if (options.rules.requireNavLinks) {
+      while (navStack.length) {
+        const n = navStack.pop();
+        if (n && !n.hasLink) results.push({ ...n, message: '<nav> contains no links', rule: 'requireNavLinks' });
+      }
+    }
+
+    if (options.rules.requireMain && !foundMain) {
+      results.push({ line: 0, column: 0, message: 'Document missing <main> element', rule: 'requireMain' });
+    }
 
     return results;
   } catch (e) {

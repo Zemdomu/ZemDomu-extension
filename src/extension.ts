@@ -86,7 +86,9 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
         requireButtonText: config.get('rules.requireButtonText', true),
         requireIframeTitle: config.get('rules.requireIframeTitle', true),
         requireHtmlLang: config.get('rules.requireHtmlLang', true),
-        requireImageInputAlt: config.get('rules.requireImageInputAlt', true)
+        requireImageInputAlt: config.get('rules.requireImageInputAlt', true),
+        requireMain: config.get('rules.requireMain', true),
+        requireNavLinks: config.get('rules.requireNavLinks', true)
       },
       crossComponentAnalysis: config.get('crossComponentAnalysis', true)
     };
