@@ -25,7 +25,7 @@ export function activate(context: vscode.ExtensionContext) {
         preventEmptyInlineTags: config.get<boolean>('rules.preventEmptyInlineTags', true),
         requireHrefOnAnchors: config.get<boolean>('rules.requireHrefOnAnchors', true)
       },
-      crossComponentAnalysis: config.get<boolean>('enableCrossComponentAnalysis', true)
+      crossComponentAnalysis: config.get<boolean>('crossComponentAnalysis', true)
     };
   }
 
@@ -185,7 +185,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
       
       // If any rules changed, re-run linting
-      if (e.affectsConfiguration('zemdomu.rules') || e.affectsConfiguration('zemdomu.enableCrossComponentAnalysis')) {
+      if (e.affectsConfiguration('zemdomu.rules') || e.affectsConfiguration('zemdomu.crossComponentAnalysis')) {
         lintWorkspace();
       }
     }
