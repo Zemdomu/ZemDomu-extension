@@ -1,14 +1,25 @@
 // src/linter.ts
 import { parse as parseHtmlDom } from './simpleHtmlParser';
-import { parse } from '@babel/parser';
-import traverse, { NodePath } from '@babel/traverse';
-import {
-  isJSXIdentifier,
-  isJSXAttribute,
-  isJSXElement,
-  isStringLiteral
-} from '@babel/types';
-import type { JSXElement, JSXAttribute } from '@babel/types';
+// Minimal type guards to avoid bundling the entire @babel/types library
+interface JSXIdentifier { type: 'JSXIdentifier'; name: string; }
+interface JSXAttribute { type: 'JSXAttribute'; name: JSXIdentifier; value: any; }
+interface JSXElement { type: 'JSXElement'; openingElement: { name: JSXIdentifier; attributes: JSXAttribute[]; loc?: { start: { line: number; column: number } } }; }
+
+function isJSXIdentifier(node: any): node is JSXIdentifier {
+  return node && node.type === 'JSXIdentifier';
+}
+
+function isJSXAttribute(node: any): node is JSXAttribute {
+  return node && node.type === 'JSXAttribute';
+}
+
+function isJSXElement(node: any): node is JSXElement {
+  return node && node.type === 'JSXElement';
+}
+
+function isStringLiteral(node: any): node is { type: 'StringLiteral'; value: string } {
+  return node && node.type === 'StringLiteral';
+}
 
 export interface LintResult {
   line: number;
@@ -298,6 +309,7 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
   const results: LintResult[] = [];
   
   try {
+    const parse = eval('require')('@babel/parser').parse as (code: string, opts: any) => any;
     const ast = parse(code, { sourceType: 'module', plugins: ['typescript', 'jsx'], tokens: true, sourceFilename: '' });
 
     const disableNextLines = new Set<number>();
@@ -342,9 +354,10 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
     const navStack: Array<{ line: number; column: number; hasLink: boolean }> = [];
     const ids = new Map<string, { line: number; column: number }>();
 
+    const traverse = eval('require')('@babel/traverse').default as (ast: any, visitors: any) => void;
     traverse(ast, {
       JSXElement: {
-        enter(path: NodePath<JSXElement>) {
+        enter(path: any) {
           const opening = path.node.openingElement;
           if (!isJSXIdentifier(opening.name)) return;
           const tag = opening.name.name.toLowerCase();
@@ -521,7 +534,7 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
             sectionStack.push({ ...pos, foundHeading: false });
           }
         },
-        exit(path: NodePath<JSXElement>) {
+        exit(path: any) {
           const opening = path.node.openingElement;
           if (!isJSXIdentifier(opening.name) || !opening.loc) return;
           if (isIgnored(opening.loc.start.line)) return;
