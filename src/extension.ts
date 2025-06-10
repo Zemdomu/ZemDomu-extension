@@ -87,7 +87,6 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
         requireIframeTitle: config.get('rules.requireIframeTitle', true),
         requireHtmlLang: config.get('rules.requireHtmlLang', true),
         requireImageInputAlt: config.get('rules.requireImageInputAlt', true),
-        requireMain: config.get('rules.requireMain', true),
         requireNavLinks: config.get('rules.requireNavLinks', true),
         uniqueIds: config.get('rules.uniqueIds', true)
       },
@@ -110,9 +109,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       const options = getLinterOptions();
       let results = lintHtml(text, xmlMode, options);
 
-      if (xmlMode && options.crossComponentAnalysis && options.rules.requireMain) {
-        results = results.filter(r => r.rule !== 'requireMain');
-      }
+
       
       // Also analyze component structure if this is a JSX/TSX file
       if (xmlMode && /\.(jsx|tsx)$/.test(uri.fsPath)) {
@@ -163,9 +160,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       console.debug(`[ZemDomu] Analyzing component: ${uri.fsPath}`);
       const text = (await vscode.workspace.openTextDocument(uri)).getText();
       let results = lintHtml(text, true, options);
-      if (options.crossComponentAnalysis && options.rules.requireMain) {
-        results = results.filter(r => r.rule !== 'requireMain');
-      }
+
       
       const component = await componentAnalyzer!.analyzeFile(uri);
       if (component) {

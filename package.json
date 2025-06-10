@@ -125,11 +125,6 @@
           "default": true,
           "description": "Warn when <input type=\"image\"> is missing alt text."
         },
-        "zemdomu.rules.requireMain": {
-          "type": "boolean",
-          "default": true,
-          "description": "Warn when a document lacks a <main> element."
-        },
         "zemdomu.rules.requireNavLinks": {
           "type": "boolean",
           "default": true,
@@ -223,12 +218,6 @@
           "enum": ["warning", "error"],
           "default": "warning",
           "description": "Severity for the requireImageInputAlt rule."
-        },
-        "zemdomu.severity.requireMain": {
-          "type": "string",
-          "enum": ["warning", "error"],
-          "default": "warning",
-          "description": "Severity for the requireMain rule."
         },
         "zemdomu.severity.requireNavLinks": {
           "type": "string",

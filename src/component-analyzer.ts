@@ -33,8 +33,6 @@ interface ComponentDefinition {
   issues: Map<string, LintResult[]>;
   usesComponents: ComponentReference[];
   headings: HeadingInfo[];
-  hasMain: boolean;
-  aliasOf: string | null;
 }
 
 export class ComponentAnalyzer {
@@ -67,14 +65,11 @@ export class ComponentAnalyzer {
       filePath,
       issues: new Map(),
       usesComponents: [],
-      headings: [],
-      hasMain: false,
-      aliasOf: null
+      headings: []
     };
 
     // Track imported components
     const importedComponents = new Map<string, string>();
-    let reExportPath: string | null = null;
     
     // Collect imports and JSX usages
     traverse(ast, {
@@ -89,30 +84,11 @@ export class ComponentAnalyzer {
           }
         });
       },
-            ExportNamedDeclaration(path) {
-        if (path.node.source) {
-          const hasDefault = path.node.specifiers.some(s => {
-            const exp: any = (s as any).exported;
-            return exp && exp.name === 'default';
-          });
-          if (hasDefault || path.node.specifiers.length === 0) {
-            reExportPath = path.node.source.value as string;
-          }
-        }
-      },
-      ExportAllDeclaration(path) {
-        if (path.node.source) {
-          reExportPath = path.node.source.value as string;
-        }
-      },
       JSXElement(path) {
         const elt = path.node.openingElement.name;
         if (t.isJSXIdentifier(elt)) {
           const name = elt.name;
-          const tag = name.toLowerCase();          
-          if (tag === 'main') {
-            componentDef.hasMain = true;
-          }
+          const tag = name.toLowerCase();
           // Record headings
           if (/^h[1-6]$/.test(tag)) {
             const level = parseInt(tag.charAt(1), 10);
@@ -160,9 +136,6 @@ export class ComponentAnalyzer {
       if (ref.rawImportPath) {
         ref.path = await this.resolveComponentPath(ref.rawImportPath, filePath);
       }
-    }
-    if (reExportPath) {
-      componentDef.aliasOf = await this.resolveComponentPath(reExportPath, filePath);
     }
 
     // Check for heading order issues within this component
@@ -268,7 +241,6 @@ export class ComponentAnalyzer {
 
     if (rules.singleH1) this.findCrossComponentH1Issues(results);
     if (rules.enforceHeadingOrder) this.findCrossComponentHeadingOrderIssues(results);
-    if (rules.requireMain) this.findCrossComponentMainIssues(results);
 
     return results;
   }
@@ -469,45 +441,6 @@ export class ComponentAnalyzer {
     return allHeadings;
   }
 
-  private componentTreeHasMain(component: ComponentDefinition, visited = new Set<string>()): boolean {
-    if (visited.has(component.filePath)) return false;
-    visited.add(component.filePath);
-    if (component.hasMain) return true;
-
-    if (component.aliasOf) {
-      if (this.componentRegistry.has(component.aliasOf)) {
-        if (this.componentTreeHasMain(this.componentRegistry.get(component.aliasOf)!, visited)) {
-          return true;
-        }
-      } else {
-        // Assume external component may contain <main>
-        return true;
-      }
-    }
-    for (const ref of component.usesComponents) {
-      if (ref.path && this.componentRegistry.has(ref.path)) {
-        if (this.componentTreeHasMain(this.componentRegistry.get(ref.path)!, visited)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  private findCrossComponentMainIssues(results: LintResult[]): void {
-    const entryPoints = this.findEntryPoints();
-    for (const entry of entryPoints) {
-      if (!this.componentTreeHasMain(entry)) {
-        results.push({
-          filePath: entry.filePath,
-          line: 0,
-          column: 0,
-          message: 'Document missing <main> element',
-          rule: 'requireMain'
-        });
-      }
-    }
-  }
   private findEntryPoints(): ComponentDefinition[] {
     const all = Array.from(this.componentRegistry.values());
     const imported = new Set<string>();
