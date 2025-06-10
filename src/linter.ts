@@ -321,9 +321,11 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
             if (s && !s.foundHeading) results.push({ ...s, message: '<section> missing heading (<h1>-<h6>)' }); 
           }
           
-          if (options.rules.requireTableCaption && tag === 'table') { 
-            const tble = tableStack.pop(); 
-            if (tble && !tble.foundCaption) results.push({ ...tble, message: '<table> missing <caption>' }); 
+          if (options.rules.requireTableCaption && tag === 'table') {
+            const tableEntry = tableStack.pop();
+            if (tableEntry && !tableEntry.foundCaption) {
+              results.push({ ...tableEntry, message: '<table> missing <caption>' });
+            }
           }
         }
       },
