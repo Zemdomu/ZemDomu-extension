@@ -172,7 +172,11 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
       // img alt
       if (options.rules.requireAltText && tag === 'img') {
         const alt = attrs.alt;
-        if (!alt || !alt.trim()) results.push({ ...pos, message: '<img> tag missing non-empty alt attribute', rule: 'requireAltText' });
+        if (alt === undefined) {
+          results.push({ ...pos, message: '<img> tag missing alt attribute', rule: 'requireAltText' });
+        } else if (!alt.trim()) {
+          results.push({ ...pos, message: '<img> alt attribute is empty', rule: 'requireAltText' });
+        }
       }
       
       // li nesting
@@ -386,11 +390,17 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
           
           // img alt
           if (options.rules.requireAltText && tag === 'img') {
-            const hasAlt = opening.attributes.some(attr =>
-              t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'alt' &&
-              t.isStringLiteral(attr.value) && attr.value.value.trim() !== ''
-            );
-            if (!hasAlt) results.push({ ...pos, message: '<img> missing non-empty alt attribute', rule: 'requireAltText' });
+            let altAttr: t.JSXAttribute | undefined;
+            opening.attributes.forEach(attr => {
+              if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'alt') {
+                altAttr = attr;
+              }
+            });
+            if (!altAttr) {
+              results.push({ ...pos, message: '<img> tag missing alt attribute', rule: 'requireAltText' });
+            } else if (!t.isStringLiteral(altAttr.value) || altAttr.value.value.trim() === '') {
+              results.push({ ...pos, message: '<img> alt attribute is empty', rule: 'requireAltText' });
+            }
           }
           
           // li nesting
