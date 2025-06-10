@@ -88,7 +88,8 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
         requireHtmlLang: config.get('rules.requireHtmlLang', true),
         requireImageInputAlt: config.get('rules.requireImageInputAlt', true),
         requireMain: config.get('rules.requireMain', true),
-        requireNavLinks: config.get('rules.requireNavLinks', true)
+        requireNavLinks: config.get('rules.requireNavLinks', true),
+        uniqueIds: config.get('rules.uniqueIds', true)
       },
       crossComponentAnalysis: config.get('crossComponentAnalysis', true)
     };
