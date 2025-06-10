@@ -1,14 +1,10 @@
 # Node + Yarn
-yarn.lock
-
-# Exclude node_modules by default but include required runtime deps
 node_modules/
-!node_modules/@babel/parser/**
-!node_modules/@babel/traverse/**
 node_modules/@types
 node_modules/@babel/parser/lib/**/*.map
 node_modules/@babel/traverse/lib/**/*.map
 node_modules/@babel/types/lib/**/*.map
+yarn.lock
 
 # Source files
 src/
