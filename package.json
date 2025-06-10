@@ -104,6 +104,66 @@
           "type": "boolean",
           "default": true,
           "description": "Warn when an <a> tag is missing a non-empty href attribute."
+        },
+        "zemdomu.severity.requireSectionHeading": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the requireSectionHeading rule."
+        },
+        "zemdomu.severity.enforceHeadingOrder": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the enforceHeadingOrder rule."
+        },
+        "zemdomu.severity.singleH1": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the singleH1 rule."
+        },
+        "zemdomu.severity.requireAltText": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the requireAltText rule."
+        },
+        "zemdomu.severity.requireLabelForFormControls": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the requireLabelForFormControls rule."
+        },
+        "zemdomu.severity.enforceListNesting": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the enforceListNesting rule."
+        },
+        "zemdomu.severity.requireLinkText": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the requireLinkText rule."
+        },
+        "zemdomu.severity.requireTableCaption": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the requireTableCaption rule."
+        },
+        "zemdomu.severity.preventEmptyInlineTags": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the preventEmptyInlineTags rule."
+        },
+        "zemdomu.severity.requireHrefOnAnchors": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the requireHrefOnAnchors rule."
         }
       }
     }
