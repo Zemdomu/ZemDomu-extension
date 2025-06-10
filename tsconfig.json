@@ -5,7 +5,10 @@
       "target": "es2018",
       "lib": ["es2018", "dom"],
       "moduleResolution": "node",
-      "typeRoots": ["./types"],
+      "typeRoots": [
+        "./types",
+        "./node_modules/@types"
+      ],
       "skipLibCheck": true,
       "strict": true,
       "noImplicitAny": false,
