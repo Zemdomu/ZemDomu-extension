@@ -4,6 +4,9 @@
       "module": "commonjs",
       "target": "es2018",
       "lib": ["es2018", "dom"],
+      "moduleResolution": "node",
+      "types": ["node", "vscode"],
+      "skipLibCheck": true,
       "strict": true,
       "esModuleInterop": true
     },
