@@ -12,5 +12,6 @@ out/
 Thumbs.db
 
 # Dev/editor files
-.vscode/
+/.vscode/*
+!/.vscode/tasks.json
 yarn.lock

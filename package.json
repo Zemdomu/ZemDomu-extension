@@ -216,7 +216,8 @@
     "compile": "tsc -p ./tsconfig.json",
     "watch": "tsc -w",
     "package": "vsce package",
-    "test": "echo 'No tests'"
+    "test": "echo 'No tests'",
+    "publish-all": "npm install && npm run compile && npm run package"
   },
   "devDependencies": {
     "@types/babel__traverse": "^7.20.7",
