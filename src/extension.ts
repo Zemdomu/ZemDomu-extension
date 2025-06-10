@@ -103,6 +103,9 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
 
   async function lintDocument(uri: vscode.Uri, xmlMode: boolean) {
     try {
+      if (uri.fsPath.includes('node_modules')) {
+        return;
+      }
       const text = (await vscode.workspace.openTextDocument(uri)).getText();
       const options = getLinterOptions();
       let results = lintHtml(text, xmlMode, options);
@@ -152,7 +155,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     componentAnalyzer = new ComponentAnalyzer(options);
     
     // Find and analyze all JSX/TSX files first
-    const jsxFiles = await vscode.workspace.findFiles('**/*.{jsx,tsx}');
+    const jsxFiles = await vscode.workspace.findFiles('**/*.{jsx,tsx}', '**/node_modules/**');
     console.debug(`[ZemDomu] Found ${jsxFiles.length} JSX/TSX files to analyze`);
     
     // First pass: analyze all components
@@ -220,7 +223,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     }
     
     // Also analyze HTML files
-    const htmlFiles = await vscode.workspace.findFiles('**/*.html');
+    const htmlFiles = await vscode.workspace.findFiles('**/*.html', '**/node_modules/**');
     console.debug(`[ZemDomu] Found ${htmlFiles.length} HTML files to analyze`);
     await Promise.all(htmlFiles.map(uri => lintDocument(uri, false)));
     

@@ -34,6 +34,7 @@ interface ComponentDefinition {
   usesComponents: ComponentReference[];
   headings: HeadingInfo[];
   hasMain: boolean;
+  aliasOf: string | null;
 }
 
 export class ComponentAnalyzer {
@@ -67,11 +68,13 @@ export class ComponentAnalyzer {
       issues: new Map(),
       usesComponents: [],
       headings: [],
-      hasMain: false
+      hasMain: false,
+      aliasOf: null
     };
 
     // Track imported components
     const importedComponents = new Map<string, string>();
+    let reExportPath: string | null = null;
     
     // Collect imports and JSX usages
     traverse(ast, {
@@ -86,11 +89,27 @@ export class ComponentAnalyzer {
           }
         });
       },
+            ExportNamedDeclaration(path) {
+        if (path.node.source) {
+          const hasDefault = path.node.specifiers.some(s => {
+            const exp: any = (s as any).exported;
+            return exp && exp.name === 'default';
+          });
+          if (hasDefault || path.node.specifiers.length === 0) {
+            reExportPath = path.node.source.value as string;
+          }
+        }
+      },
+      ExportAllDeclaration(path) {
+        if (path.node.source) {
+          reExportPath = path.node.source.value as string;
+        }
+      },
       JSXElement(path) {
         const elt = path.node.openingElement.name;
         if (t.isJSXIdentifier(elt)) {
           const name = elt.name;
-          const tag = name.toLowerCase();
+          const tag = name.toLowerCase();          
           if (tag === 'main') {
             componentDef.hasMain = true;
           }
@@ -141,6 +160,9 @@ export class ComponentAnalyzer {
       if (ref.rawImportPath) {
         ref.path = await this.resolveComponentPath(ref.rawImportPath, filePath);
       }
+    }
+    if (reExportPath) {
+      componentDef.aliasOf = await this.resolveComponentPath(reExportPath, filePath);
     }
 
     // Check for heading order issues within this component
@@ -451,6 +473,17 @@ export class ComponentAnalyzer {
     if (visited.has(component.filePath)) return false;
     visited.add(component.filePath);
     if (component.hasMain) return true;
+
+    if (component.aliasOf) {
+      if (this.componentRegistry.has(component.aliasOf)) {
+        if (this.componentTreeHasMain(this.componentRegistry.get(component.aliasOf)!, visited)) {
+          return true;
+        }
+      } else {
+        // Assume external component may contain <main>
+        return true;
+      }
+    }
     for (const ref of component.usesComponents) {
       if (ref.path && this.componentRegistry.has(ref.path)) {
         if (this.componentTreeHasMain(this.componentRegistry.get(ref.path)!, visited)) {
@@ -475,7 +508,6 @@ export class ComponentAnalyzer {
       }
     }
   }
-
   private findEntryPoints(): ComponentDefinition[] {
     const all = Array.from(this.componentRegistry.values());
     const imported = new Set<string>();
