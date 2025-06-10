@@ -33,6 +33,7 @@ interface ComponentDefinition {
   issues: Map<string, LintResult[]>;
   usesComponents: ComponentReference[];
   headings: HeadingInfo[];
+  hasMain: boolean;
 }
 
 export class ComponentAnalyzer {
@@ -65,7 +66,8 @@ export class ComponentAnalyzer {
       filePath,
       issues: new Map(),
       usesComponents: [],
-      headings: []
+      headings: [],
+      hasMain: false
     };
 
     // Track imported components
@@ -88,8 +90,11 @@ export class ComponentAnalyzer {
         const elt = path.node.openingElement.name;
         if (t.isJSXIdentifier(elt)) {
           const name = elt.name;
-          // Record headings
           const tag = name.toLowerCase();
+          if (tag === 'main') {
+            componentDef.hasMain = true;
+          }
+          // Record headings
           if (/^h[1-6]$/.test(tag)) {
             const level = parseInt(tag.charAt(1), 10);
             const loc = elt.loc?.start;
@@ -241,6 +246,7 @@ export class ComponentAnalyzer {
 
     if (rules.singleH1) this.findCrossComponentH1Issues(results);
     if (rules.enforceHeadingOrder) this.findCrossComponentHeadingOrderIssues(results);
+    if (rules.requireMain) this.findCrossComponentMainIssues(results);
 
     return results;
   }
@@ -439,6 +445,35 @@ export class ComponentAnalyzer {
     }
     
     return allHeadings;
+  }
+
+  private componentTreeHasMain(component: ComponentDefinition, visited = new Set<string>()): boolean {
+    if (visited.has(component.filePath)) return false;
+    visited.add(component.filePath);
+    if (component.hasMain) return true;
+    for (const ref of component.usesComponents) {
+      if (ref.path && this.componentRegistry.has(ref.path)) {
+        if (this.componentTreeHasMain(this.componentRegistry.get(ref.path)!, visited)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private findCrossComponentMainIssues(results: LintResult[]): void {
+    const entryPoints = this.findEntryPoints();
+    for (const entry of entryPoints) {
+      if (!this.componentTreeHasMain(entry)) {
+        results.push({
+          filePath: entry.filePath,
+          line: 0,
+          column: 0,
+          message: 'Document missing <main> element',
+          rule: 'requireMain'
+        });
+      }
+    }
   }
 
   private findEntryPoints(): ComponentDefinition[] {
