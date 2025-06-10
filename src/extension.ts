@@ -8,6 +8,7 @@ export function activate(context: vscode.ExtensionContext) {
   let saveDisp: vscode.Disposable | undefined;
   let typeDisp: vscode.Disposable | undefined;
   let componentAnalyzer: ComponentAnalyzer | undefined;
+  let workspaceLinted = false;
 
   // Get linter options from configuration
   function getLinterOptions(): LinterOptions {
@@ -56,6 +57,11 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       console.debug('[ZemDomu] lintDocument parse error:', e instanceof Error ? e.message : String(e));
     }
   }
+    async function lintSingleFile(doc: vscode.TextDocument) {
+    const xmlMode = ['javascriptreact','typescriptreact'].includes(doc.languageId);
+    await lintDocument(doc.uri, xmlMode);
+  }
+
 
   async function lintWorkspace() {
     console.debug('[ZemDomu] Starting workspace lint');
@@ -136,6 +142,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     await Promise.all(htmlFiles.map(uri => lintDocument(uri, false)));
     
     console.debug('[ZemDomu] Workspace lint complete');
+    workspaceLinted = true;
   }
 
   function updateListeners() {
@@ -147,14 +154,22 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       console.log('[ZemDomu] onSave enabled');
       saveDisp = vscode.workspace.onDidSaveTextDocument(doc => {
         if (['html','javascriptreact','typescriptreact'].includes(doc.languageId)) {
-          lintWorkspace();
+          if (workspaceLinted) {
+            lintSingleFile(doc);
+          } else {
+            lintWorkspace();
+          }
         }
       });
     } else if (runMode === 'onType') {
       console.log('[ZemDomu] onType enabled');
       typeDisp = vscode.workspace.onDidChangeTextDocument(evt => {
         if (['html','javascriptreact','typescriptreact'].includes(evt.document.languageId)) {
-          lintWorkspace();
+          if (workspaceLinted) {
+            lintSingleFile(evt.document);
+          } else {
+            lintWorkspace();
+          }
         }
       });
     } else {
@@ -170,7 +185,11 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       cancellable: false
     }, async (progress) => {
       progress.report({ increment: 0 });
+      const slowMsg = setTimeout(() => {
+        vscode.window.showInformationMessage('ZemDomu: Scanning entire workspace, this may take some time...');
+      }, 5000);
       await lintWorkspace();
+      clearTimeout(slowMsg);
       progress.report({ increment: 100 });
       return "Scan complete";
     });

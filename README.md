@@ -25,6 +25,7 @@
 - 📛 Verifies `<a>` tags have both `href` and link text
 - 📚 Confirms `<section>` includes a heading
 - 🧩 Works with `.html`, `.jsx`, and `.tsx` files
+- ⚡ Caches results after the first scan so subsequent saves only re-check the current file
 
 ---
 
