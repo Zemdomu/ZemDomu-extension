@@ -66,13 +66,21 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
   const emptyStack: Array<{ tag: string; foundText: boolean; line: number; column: number }> = [];
   const labels = new Set<string>();
   let ignoreNext = false;
+  let ignoreBlock = false;
   let curLine = 0;
   let curCol = 0;
   const inlineTags = new Set(['strong','em','b','i','u','small','mark','del','ins']);
 
   const parser = new Parser({
     oncomment(data) {
-      if (data.trim().startsWith('zemdomu-disable-next')) ignoreNext = true;
+      const trimmed = data.trim();
+      if (trimmed.startsWith('zemdomu-disable-next')) {
+        ignoreNext = true;
+      } else if (trimmed.startsWith('zemdomu-disable')) {
+        ignoreBlock = true;
+      } else if (trimmed.startsWith('zemdomu-enable')) {
+        ignoreBlock = false;
+      }
     },
     ontext(text) {
       const parts = text.split('\n');
@@ -82,6 +90,7 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
       } else {
         curCol += text.length;
       }
+      if (ignoreBlock) return;
       const trimmed = text.trim();
       if (anchorStack.length && trimmed) anchorStack[anchorStack.length - 1].foundText = true;
       if (emptyStack.length && trimmed) emptyStack[emptyStack.length - 1].foundText = true;
@@ -91,6 +100,7 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
       const pos = { tag, line: curLine, column: curCol };
       tagStack.push(pos);
       if (ignoreNext) { ignoreNext = false; return; }
+      if (ignoreBlock) return;
 
       // labels
       if (tag === 'label' && attrs.for) labels.add(attrs.for);
@@ -158,6 +168,8 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
     onclosetag(name) {
       const tag = name.toLowerCase();
       tagStack.pop();
+
+      if (ignoreBlock) return;
       
       if (options.rules.preventEmptyInlineTags && inlineTags.has(tag)) {
         const e = emptyStack.pop();
@@ -191,7 +203,36 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
   const results: LintResult[] = [];
   
   try {
-    const ast = parse(code, { sourceType: 'module', plugins: ['typescript', 'jsx'] });
+    const ast = parse(code, { sourceType: 'module', plugins: ['typescript', 'jsx'], tokens: true, sourceFilename: '' });
+
+    const disableNextLines = new Set<number>();
+    const disableBlocks: Array<{ start: number; end: number }> = [];
+    let blockStart: number | null = null;
+    if (Array.isArray(ast.comments)) {
+      for (const c of ast.comments) {
+        const val = c.value.trim();
+        const startLine = c.loc?.start.line ?? 0;
+        const endLine = c.loc?.end.line ?? startLine;
+        if (val.startsWith('zemdomu-disable-next')) {
+          disableNextLines.add(endLine + 1);
+        } else if (val.startsWith('zemdomu-disable')) {
+          blockStart = endLine;
+        } else if (val.startsWith('zemdomu-enable')) {
+          if (blockStart !== null) {
+            disableBlocks.push({ start: blockStart, end: startLine });
+            blockStart = null;
+          }
+        }
+      }
+      if (blockStart !== null) {
+        disableBlocks.push({ start: blockStart, end: Number.MAX_SAFE_INTEGER });
+      }
+    }
+
+    function isIgnored(line: number): boolean {
+      if (disableNextLines.has(line)) return true;
+      return disableBlocks.some(b => line >= b.start && line <= b.end);
+    }
 
     let lastHeadingLevel = 0;
     let h1Count = 0;
@@ -210,6 +251,7 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
           const loc = opening.loc?.start;
           if (!loc) return;
           const pos = { line: loc.line - 1, column: loc.column };
+          if (isIgnored(loc.line)) return;
 
           // labels
           opening.attributes.forEach(attr => {
@@ -303,6 +345,7 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
         exit(path: NodePath<t.JSXElement>) {
           const opening = path.node.openingElement;
           if (!t.isJSXIdentifier(opening.name) || !opening.loc) return;
+          if (isIgnored(opening.loc.start.line)) return;
           const tag = opening.name.name.toLowerCase();
           const pos = { line: opening.loc.start.line - 1, column: opening.loc.start.column };
           
@@ -330,6 +373,7 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
         }
       },
       JSXText(path) {
+        if (isIgnored(path.node.loc?.start.line ?? 0)) return;
         const text = path.node.value.trim();
         if (text && anchorStack.length) {
           anchorStack[anchorStack.length - 1].foundText = true;
@@ -340,6 +384,7 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
       },
       JSXExpressionContainer(path) {
         // Consider JSX expressions as potential text content
+        if (isIgnored(path.node.loc?.start.line ?? 0)) return;
         if (anchorStack.length) {
           anchorStack[anchorStack.length - 1].foundText = true;
         }
