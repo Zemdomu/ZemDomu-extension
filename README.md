@@ -68,6 +68,16 @@ the Settings UI or edit `settings.json` directly:
 - `zemdomu.crossComponentAnalysis` – analyze JSX components across files
 - `zemdomu.rules.*` – enable or disable individual semantic rules
 
+### Inline Rule Controls
+
+You can selectively disable ZemDomu using special comments:
+
+- `<!-- zemdomu-disable-next -->` – skip linting for the next element
+- `<!-- zemdomu-disable -->` – start a block where linting is disabled
+- `<!-- zemdomu-enable -->` – re-enable linting after a disabled block
+
+For JSX/TSX files use the JSX comment syntax, e.g. `{/* zemdomu-disable */}`.
+
 ---
 
 ## 🛠 Development
