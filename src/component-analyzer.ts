@@ -221,6 +221,10 @@ export class ComponentAnalyzer {
     if (msg.includes('Heading level')) return 'enforceHeadingOrder';
     if (msg.includes('<section>')) return 'requireSectionHeading';
     if (msg.includes('<img>')) return 'requireAltText';
+    if (msg.includes('missing title attribute')) return 'requireIframeTitle';
+    if (msg.includes('missing alt attribute') && msg.includes('input type="image"')) return 'requireImageInputAlt';
+    if (msg.includes('<html>')) return 'requireHtmlLang';
+    if (msg.includes('<button>')) return 'requireButtonText';
     if (msg.includes('Form control')) return 'requireLabelForFormControls';
     if (msg.includes('<li>')) return 'enforceListNesting';
     if (msg.includes('<a>')) return msg.includes('href') ? 'requireHrefOnAnchors' : 'requireLinkText';

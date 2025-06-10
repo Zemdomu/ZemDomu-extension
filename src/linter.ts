@@ -26,6 +26,10 @@ export interface LinterOptions {
     requireTableCaption: boolean;
     preventEmptyInlineTags: boolean;
     requireHrefOnAnchors: boolean;
+    requireButtonText: boolean;
+    requireIframeTitle: boolean;
+    requireHtmlLang: boolean;
+    requireImageInputAlt: boolean;
   };
 }
 
@@ -42,7 +46,11 @@ const defaultOptions: LinterOptions = {
     requireLinkText: true,
     requireTableCaption: true,
     preventEmptyInlineTags: true,
-    requireHrefOnAnchors: true
+    requireHrefOnAnchors: true,
+    requireButtonText: true,
+    requireIframeTitle: true,
+    requireHtmlLang: true,
+    requireImageInputAlt: true
   }
 };
 
@@ -64,6 +72,7 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
   let h1Count = 0;
   const sectionStack: Array<{ foundHeading: boolean; line: number; column: number }> = [];
   const anchorStack: Array<{ foundText: boolean; line: number; column: number }> = [];
+  const buttonStack: Array<{ foundText: boolean; line: number; column: number }> = [];
   const tableStack: Array<{ foundCaption: boolean; line: number; column: number }> = [];
   const emptyStack: Array<{ tag: string; foundText: boolean; line: number; column: number }> = [];
   const labels = new Set<string>();
@@ -72,6 +81,7 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
   let curLine = 0;
   let curCol = 0;
   const inlineTags = new Set(['strong','em','b','i','u','small','mark','del','ins']);
+  let htmlSeen = false;
 
   const parser = new Parser({
     oncomment(data) {
@@ -96,6 +106,7 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
       const trimmed = text.trim();
       if (anchorStack.length && trimmed) anchorStack[anchorStack.length - 1].foundText = true;
       if (emptyStack.length && trimmed) emptyStack[emptyStack.length - 1].foundText = true;
+      if (buttonStack.length && trimmed) buttonStack[buttonStack.length - 1].foundText = true;
     },
     onopentag(name, attrs) {
       const tag = name.toLowerCase();
@@ -106,7 +117,32 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
 
       // labels
       if (tag === 'label' && attrs.for) labels.add(attrs.for);
-      
+
+      // html lang
+      if (options.rules.requireHtmlLang && tag === 'html' && !htmlSeen) {
+        htmlSeen = true;
+        const lang = attrs.lang;
+        if (!lang || !lang.trim()) {
+          results.push({ ...pos, message: '<html> element missing lang attribute', rule: 'requireHtmlLang' });
+        }
+      }
+
+      // iframe title
+      if (options.rules.requireIframeTitle && tag === 'iframe') {
+        const title = attrs.title;
+        if (!title || !title.trim()) {
+          results.push({ ...pos, message: '<iframe> missing title attribute', rule: 'requireIframeTitle' });
+        }
+      }
+
+      // input type=image alt
+      if (options.rules.requireImageInputAlt && tag === 'input' && attrs.type && attrs.type.toLowerCase() === 'image') {
+        const alt = attrs.alt;
+        if (!alt || !alt.trim()) {
+          results.push({ ...pos, message: '<input type="image"> missing alt attribute', rule: 'requireImageInputAlt' });
+        }
+      }
+
       // form controls
       if (options.rules.requireLabelForFormControls && ['input','select','textarea'].includes(tag)) {
         const id = attrs.id;
@@ -156,6 +192,12 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
           if (!href || !href.trim()) results.push({ ...pos, message: '<a> tag missing non-empty href attribute', rule: 'requireHrefOnAnchors' });
         }
       }
+
+      // button text
+      if (options.rules.requireButtonText && tag === 'button') {
+        const aria = attrs['aria-label'];
+        buttonStack.push({ ...pos, foundText: !!(aria && aria.trim()) });
+      }
       
       // table caption
       if (tag === 'table') tableStack.push({ ...pos, foundCaption: false });
@@ -181,6 +223,11 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
       if (options.rules.requireLinkText && tag === 'a') {
         const a = anchorStack.pop();
         if (a && !a.foundText) results.push({ line: a.line, column: a.column, message: '<a> tag missing link text', rule: 'requireLinkText' });
+      }
+
+      if (options.rules.requireButtonText && tag === 'button') {
+        const b = buttonStack.pop();
+        if (b && !b.foundText) results.push({ line: b.line, column: b.column, message: '<button> missing accessible text', rule: 'requireButtonText' });
       }
       
       if (options.rules.requireSectionHeading && tag === 'section') {
@@ -240,9 +287,11 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
     let h1Count = 0;
     const sectionStack: Array<{ foundHeading: boolean; line: number; column: number }> = [];
     const anchorStack: Array<{ foundText: boolean; line: number; column: number }> = [];
+    const buttonStack: Array<{ foundText: boolean; line: number; column: number }> = [];
     const tableStack: Array<{ foundCaption: boolean; line: number; column: number }> = [];
     const emptyStack: Array<{ tag: string; foundText: boolean; line: number; column: number }> = [];
     const labels = new Set<string>();
+    let htmlSeen = false;
 
     traverse(ast, {
       JSXElement: {
@@ -261,6 +310,49 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
               if (t.isStringLiteral(attr.value)) labels.add(attr.value.value);
             }
           });
+
+          if (options.rules.requireHtmlLang && tag === 'html' && !htmlSeen) {
+            htmlSeen = true;
+            const hasLang = opening.attributes.some(attr =>
+              t.isJSXAttribute(attr) &&
+              t.isJSXIdentifier(attr.name) &&
+              attr.name.name === 'lang' &&
+              t.isStringLiteral(attr.value) && attr.value.value.trim() !== ''
+            );
+            if (!hasLang) {
+              results.push({ ...pos, message: '<html> element missing lang attribute', rule: 'requireHtmlLang' });
+            }
+          }
+
+          if (options.rules.requireIframeTitle && tag === 'iframe') {
+            const hasTitle = opening.attributes.some(attr =>
+              t.isJSXAttribute(attr) &&
+              t.isJSXIdentifier(attr.name) &&
+              attr.name.name === 'title' &&
+              t.isStringLiteral(attr.value) && attr.value.value.trim() !== ''
+            );
+            if (!hasTitle) {
+              results.push({ ...pos, message: '<iframe> missing title attribute', rule: 'requireIframeTitle' });
+            }
+          }
+
+          if (options.rules.requireImageInputAlt && tag === 'input') {
+            let isImage = false;
+            let altVal: string | undefined;
+            opening.attributes.forEach(attr => {
+              if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name)) {
+                if (attr.name.name === 'type' && t.isStringLiteral(attr.value)) {
+                  isImage = attr.value.value.toLowerCase() === 'image';
+                }
+                if (attr.name.name === 'alt' && t.isStringLiteral(attr.value)) {
+                  altVal = attr.value.value;
+                }
+              }
+            });
+            if (isImage && (!altVal || !altVal.trim())) {
+              results.push({ ...pos, message: '<input type="image"> missing alt attribute', rule: 'requireImageInputAlt' });
+            }
+          }
           
           // form controls
           if (options.rules.requireLabelForFormControls && ['input', 'select', 'textarea'].includes(tag)) {
@@ -314,7 +406,7 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
           }
           
           // anchors
-          if (tag === 'a') { 
+          if (tag === 'a') {
             anchorStack.push({ ...pos, foundText: false });
             
             if (options.rules.requireHrefOnAnchors) {
@@ -328,6 +420,16 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
                 results.push({ ...pos, message: '<a> tag missing non-empty href attribute', rule: 'requireHrefOnAnchors' });
               }
             }
+          }
+
+          if (options.rules.requireButtonText && tag === 'button') {
+            let hasAria = false;
+            opening.attributes.forEach(attr => {
+              if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'aria-label' && t.isStringLiteral(attr.value)) {
+                if (attr.value.value.trim()) hasAria = true;
+              }
+            });
+            buttonStack.push({ ...pos, foundText: hasAria });
           }
           
           // table caption
@@ -360,6 +462,11 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
             const a = anchorStack.pop();
             if (a && !a.foundText) results.push({ ...a, message: '<a> tag missing link text', rule: 'requireLinkText' });
           }
+
+          if (options.rules.requireButtonText && tag === 'button') {
+            const b = buttonStack.pop();
+            if (b && !b.foundText) results.push({ ...b, message: '<button> missing accessible text', rule: 'requireButtonText' });
+          }
           
           if (options.rules.requireSectionHeading && tag === 'section') {
             const s = sectionStack.pop();
@@ -383,6 +490,9 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
         if (text && emptyStack.length) {
           emptyStack[emptyStack.length - 1].foundText = true;
         }
+        if (text && buttonStack.length) {
+          buttonStack[buttonStack.length - 1].foundText = true;
+        }
       },
       JSXExpressionContainer(path) {
         // Consider JSX expressions as potential text content
@@ -392,6 +502,9 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
         }
         if (emptyStack.length) {
           emptyStack[emptyStack.length - 1].foundText = true;
+        }
+        if (buttonStack.length) {
+          buttonStack[buttonStack.length - 1].foundText = true;
         }
       }
     });

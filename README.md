@@ -20,6 +20,10 @@
 - 🟢 Warns when `<li>` is not inside `<ul>` or `<ol>`
 - 🔵 Ensures correct heading order (`<h1> → <h2> → <h3>`…)
 - 🟠 Flags missing `alt` attributes on `<img>`
+- 🟣 Ensures `<button>` elements have accessible text
+- 🟤 Requires `<iframe>` tags to include a `title`
+- 🔶 Enforces `lang` on the `<html>` element
+- 🔷 Checks `<input type="image">` for `alt` text
 - 🔴 Detects form fields missing `aria-label` or `<label for="">`
 - ⚠️ Highlights empty `<strong>`, `<em>`, and similar tags
 - 📛 Verifies `<a>` tags have both `href` and link text

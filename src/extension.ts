@@ -82,7 +82,11 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
         requireLinkText: config.get('rules.requireLinkText', true),
         requireTableCaption: config.get('rules.requireTableCaption', true),
         preventEmptyInlineTags: config.get('rules.preventEmptyInlineTags', true),
-        requireHrefOnAnchors: config.get('rules.requireHrefOnAnchors', true)
+        requireHrefOnAnchors: config.get('rules.requireHrefOnAnchors', true),
+        requireButtonText: config.get('rules.requireButtonText', true),
+        requireIframeTitle: config.get('rules.requireIframeTitle', true),
+        requireHtmlLang: config.get('rules.requireHtmlLang', true),
+        requireImageInputAlt: config.get('rules.requireImageInputAlt', true)
       },
       crossComponentAnalysis: config.get('crossComponentAnalysis', true)
     };

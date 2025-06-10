@@ -105,6 +105,26 @@
           "default": true,
           "description": "Warn when an <a> tag is missing a non-empty href attribute."
         },
+        "zemdomu.rules.requireButtonText": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when a <button> lacks accessible text or aria-label."
+        },
+        "zemdomu.rules.requireIframeTitle": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when an <iframe> is missing a title attribute."
+        },
+        "zemdomu.rules.requireHtmlLang": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when the <html> tag lacks a lang attribute."
+        },
+        "zemdomu.rules.requireImageInputAlt": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when <input type=\"image\"> is missing alt text."
+        },
         "zemdomu.severity.requireSectionHeading": {
           "type": "string",
           "enum": ["warning", "error"],
@@ -164,6 +184,30 @@
           "enum": ["warning", "error"],
           "default": "warning",
           "description": "Severity for the requireHrefOnAnchors rule."
+        },
+        "zemdomu.severity.requireButtonText": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the requireButtonText rule."
+        },
+        "zemdomu.severity.requireIframeTitle": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the requireIframeTitle rule."
+        },
+        "zemdomu.severity.requireHtmlLang": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the requireHtmlLang rule."
+        },
+        "zemdomu.severity.requireImageInputAlt": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the requireImageInputAlt rule."
         }
       }
     }
