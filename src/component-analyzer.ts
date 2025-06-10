@@ -1,20 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-
+import { parse } from '@babel/parser';
+import traverse from '@babel/traverse';
+import * as t from '@babel/types';
 import { LintResult, LinterOptions } from './linter';
-
-// Minimal helpers to avoid bundling @babel/types
-function isImportSpecifier(node: any): node is { type: 'ImportSpecifier'; local: { name: string } } {
-  return node && node.type === 'ImportSpecifier';
-}
-
-function isImportDefaultSpecifier(node: any): node is { type: 'ImportDefaultSpecifier'; local: { name: string } } {
-  return node && node.type === 'ImportDefaultSpecifier';
-}
-
-function isJSXIdentifier(node: any): node is { type: 'JSXIdentifier'; name: string; loc?: { start: { line: number; column: number } } } {
-  return node && node.type === 'JSXIdentifier';
-}
 
 interface ComponentReference {
   name: string;
@@ -69,8 +58,6 @@ export class ComponentAnalyzer {
   }
 
   private async extractComponentInfo(content: string, filePath: string): Promise<ComponentDefinition> {
-    const parse = eval('require')('@babel/parser').parse as (code: string, opts: any) => any;
-    const traverse = eval('require')('@babel/traverse').default as (ast: any, visitors: any) => void;
     const ast = parse(content, { sourceType: 'module', plugins: ['typescript','jsx'] });
     const componentName = path.basename(filePath, path.extname(filePath));
     const componentDef: ComponentDefinition = {
@@ -89,7 +76,7 @@ export class ComponentAnalyzer {
       ImportDeclaration(path) {
         const source = path.node.source.value as string;
         path.node.specifiers.forEach(spec => {
-          if (isImportSpecifier(spec) || isImportDefaultSpecifier(spec)) {
+          if (t.isImportSpecifier(spec) || t.isImportDefaultSpecifier(spec)) {
             const name = spec.local.name;
             if (/^[A-Z]/.test(name)) {
               importedComponents.set(name, source);
@@ -99,7 +86,7 @@ export class ComponentAnalyzer {
       },
       JSXElement(path) {
         const elt = path.node.openingElement.name;
-        if (isJSXIdentifier(elt)) {
+        if (t.isJSXIdentifier(elt)) {
           const name = elt.name;
           // Record headings
           const tag = name.toLowerCase();
