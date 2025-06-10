@@ -36,7 +36,6 @@ export interface LinterOptions {
     requireIframeTitle: boolean;
     requireHtmlLang: boolean;
     requireImageInputAlt: boolean;
-    requireMain: boolean;
     requireNavLinks: boolean;
     uniqueIds: boolean;
   };
@@ -60,7 +59,6 @@ const defaultOptions: LinterOptions = {
     requireIframeTitle: true,
     requireHtmlLang: true,
     requireImageInputAlt: true,
-    requireMain: true,
     requireNavLinks: true,
     uniqueIds: true
   }
@@ -93,7 +91,6 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
   let ignoreBlock = false;
   const inlineTags = new Set(['strong','em','b','i','u','small','mark','del','ins']);
   let htmlSeen = false;
-  let foundMain = false;
   const navStack: Array<{ line: number; column: number; hasLink: boolean }> = [];
   const ids = new Map<string, { line: number; column: number }>();
 
@@ -140,7 +137,6 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
     if (tag === 'label' && node.attrs['for']) labels.add(node.attrs['for']);
 
     // structural tags
-    if (tag === 'main') foundMain = true;
     if (tag === 'nav') navStack.push({ line: pos.line, column: pos.column, hasLink: false });
     if (tag === 'a' && navStack.length) navStack[navStack.length - 1].hasLink = true;
 
@@ -286,9 +282,7 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
     }
   }
 
-  if (options.rules.requireMain && !foundMain) {
-    results.push({ line: 0, column: 0, message: 'Document missing <main> element', rule: 'requireMain' });
-  }
+
 
   return results;
 }
@@ -338,7 +332,6 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
     const emptyStack: Array<{ tag: string; foundText: boolean; line: number; column: number }> = [];
     const labels = new Set<string>();
     let htmlSeen = false;
-    let foundMain = false;
     const navStack: Array<{ line: number; column: number; hasLink: boolean }> = [];
     const ids = new Map<string, { line: number; column: number }>();
 
@@ -360,7 +353,6 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
             }
           });
 
-          if (tag === 'main') foundMain = true;
           if (tag === 'nav') navStack.push({ line: pos.line, column: pos.column, hasLink: false });
           if (tag === 'a' && navStack.length) navStack[navStack.length - 1].hasLink = true;
 
@@ -596,10 +588,6 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
         const n = navStack.pop();
         if (n && !n.hasLink) results.push({ ...n, message: '<nav> contains no links', rule: 'requireNavLinks' });
       }
-    }
-
-    if (options.rules.requireMain && !foundMain) {
-      results.push({ line: 0, column: 0, message: 'Document missing <main> element', rule: 'requireMain' });
     }
 
     return results;
