@@ -104,12 +104,17 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
   async function lintDocument(uri: vscode.Uri, xmlMode: boolean) {
     try {
       const text = (await vscode.workspace.openTextDocument(uri)).getText();
-      const results = lintHtml(text, xmlMode, getLinterOptions());
+      const options = getLinterOptions();
+      let results = lintHtml(text, xmlMode, options);
+
+      if (xmlMode && options.crossComponentAnalysis && options.rules.requireMain) {
+        results = results.filter(r => r.rule !== 'requireMain');
+      }
       
       // Also analyze component structure if this is a JSX/TSX file
       if (xmlMode && /\.(jsx|tsx)$/.test(uri.fsPath)) {
         if (!componentAnalyzer) {
-          componentAnalyzer = new ComponentAnalyzer(getLinterOptions());
+          componentAnalyzer = new ComponentAnalyzer(options);
         }
         
         const component = await componentAnalyzer.analyzeFile(uri);
@@ -154,7 +159,10 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     await Promise.all(jsxFiles.map(async uri => {
       console.debug(`[ZemDomu] Analyzing component: ${uri.fsPath}`);
       const text = (await vscode.workspace.openTextDocument(uri)).getText();
-      const results = lintHtml(text, true, options);
+      let results = lintHtml(text, true, options);
+      if (options.crossComponentAnalysis && options.rules.requireMain) {
+        results = results.filter(r => r.rule !== 'requireMain');
+      }
       
       const component = await componentAnalyzer!.analyzeFile(uri);
       if (component) {
