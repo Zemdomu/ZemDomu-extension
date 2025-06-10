@@ -1,8 +1,14 @@
 // src/linter.ts
-import { Parser } from 'htmlparser2';
+import { parse as parseHtmlDom } from './simpleHtmlParser';
 import { parse } from '@babel/parser';
 import traverse, { NodePath } from '@babel/traverse';
-import * as t from '@babel/types';
+import {
+  isJSXIdentifier,
+  isJSXAttribute,
+  isJSXElement,
+  isStringLiteral
+} from '@babel/types';
+import type { JSXElement, JSXAttribute } from '@babel/types';
 
 export interface LintResult {
   line: number;
@@ -70,9 +76,10 @@ export function lintHtml(content: string, xmlMode = false, options: LinterOption
   return xmlMode ? lintJsx(content, options) : lintHtmlString(content, options);
 }
 
-// === Plain HTML branch using htmlparser2 ===
+// === Plain HTML branch using a lightweight parser ===
 function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
   const results: LintResult[] = [];
+  const root = parseHtmlDom(html);
   const tagStack: Array<{ tag: string; line: number; column: number }> = [];
   let lastHeadingLevel = 0;
   let h1Count = 0;
@@ -84,17 +91,20 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
   const labels = new Set<string>();
   let ignoreNext = false;
   let ignoreBlock = false;
-  let curLine = 0;
-  let curCol = 0;
   const inlineTags = new Set(['strong','em','b','i','u','small','mark','del','ins']);
   let htmlSeen = false;
   let foundMain = false;
   const navStack: Array<{ line: number; column: number; hasLink: boolean }> = [];
   const ids = new Map<string, { line: number; column: number }>();
 
-  const parser = new Parser({
-    oncomment(data) {
-      const trimmed = data.trim();
+  function getPos(idx: number) {
+    const lines = html.slice(0, idx).split('\n');
+    return { line: lines.length - 1, column: lines[lines.length - 1].length };
+  }
+
+  function traverse(node: import('./simpleHtmlParser').Node): void {
+    if (node.type === 'comment') {
+      const trimmed = node.text.trim();
       if (trimmed.startsWith('zemdomu-disable-next')) {
         ignoreNext = true;
       } else if (trimmed.startsWith('zemdomu-disable')) {
@@ -102,185 +112,174 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
       } else if (trimmed.startsWith('zemdomu-enable')) {
         ignoreBlock = false;
       }
-    },
-    ontext(text) {
-      const parts = text.split('\n');
-      if (parts.length > 1) {
-        curLine += parts.length - 1;
-        curCol = parts[parts.length - 1].length;
-      } else {
-        curCol += text.length;
-      }
+      return;
+    }
+
+    if (node.type === 'text') {
       if (ignoreBlock) return;
-      const trimmed = text.trim();
+      const trimmed = node.text.trim();
       if (anchorStack.length && trimmed) anchorStack[anchorStack.length - 1].foundText = true;
       if (emptyStack.length && trimmed) emptyStack[emptyStack.length - 1].foundText = true;
       if (buttonStack.length && trimmed) buttonStack[buttonStack.length - 1].foundText = true;
-    },
-    onopentag(name, attrs) {
-      const tag = name.toLowerCase();
-      const pos = { tag, line: curLine, column: curCol };
-      tagStack.push(pos);
-      if (ignoreNext) { ignoreNext = false; return; }
-      if (ignoreBlock) return;
+      return;
+    }
 
-      // labels
-      if (tag === 'label' && attrs.for) labels.add(attrs.for);
+    // element
+    const tag = node.tagName.toLowerCase();
+    const pos = getPos(node.startIndex);
+    tagStack.push({ tag, line: pos.line, column: pos.column });
 
-      // structural tags
-      if (tag === 'main') foundMain = true;
-      if (tag === 'nav') navStack.push({ line: curLine, column: curCol, hasLink: false });
-      if (tag === 'a' && navStack.length) navStack[navStack.length - 1].hasLink = true;
-
-      if (options.rules.uniqueIds && attrs.id) {
-        const idVal = String(attrs.id);
-        if (ids.has(idVal)) {
-          results.push({ ...pos, message: `Duplicate id "${idVal}"`, rule: 'uniqueIds' });
-        } else {
-          ids.set(idVal, { line: curLine, column: curCol });
-        }
-      }
-
-      // html lang
-      if (options.rules.requireHtmlLang && tag === 'html' && !htmlSeen) {
-        htmlSeen = true;
-        const lang = attrs.lang;
-        if (!lang || !lang.trim()) {
-          results.push({ ...pos, message: '<html> element missing lang attribute', rule: 'requireHtmlLang' });
-        }
-      }
-
-      // iframe title
-      if (options.rules.requireIframeTitle && tag === 'iframe') {
-        const title = attrs.title;
-        if (!title || !title.trim()) {
-          results.push({ ...pos, message: '<iframe> missing title attribute', rule: 'requireIframeTitle' });
-        }
-      }
-
-      // input type=image alt
-      if (options.rules.requireImageInputAlt && tag === 'input' && attrs.type && attrs.type.toLowerCase() === 'image') {
-        const alt = attrs.alt;
-        if (!alt || !alt.trim()) {
-          results.push({ ...pos, message: '<input type="image"> missing alt attribute', rule: 'requireImageInputAlt' });
-        }
-      }
-
-      // form controls
-      if (options.rules.requireLabelForFormControls && ['input','select','textarea'].includes(tag)) {
-        const id = attrs.id;
-        const aria = attrs['aria-label'];
-        if (!aria || !aria.trim()) {
-          if (!id) results.push({ ...pos, message: 'Form control missing id or aria-label', rule: 'requireLabelForFormControls' });
-          else if (!labels.has(id)) results.push({ ...pos, message: `Form control with id="${id}" missing <label for=\"${id}\">`, rule: 'requireLabelForFormControls' });
-        }
-      }
-      
-      // only one h1
-      if (options.rules.singleH1 && tag === 'h1') {
-        h1Count++;
-        if (h1Count > 1) results.push({ ...pos, message: 'Only one <h1> allowed per document', rule: 'singleH1' });
-      }
-      
-      // heading order
-      if (options.rules.enforceHeadingOrder && /^h[1-6]$/.test(tag)) {
-        const lvl = parseInt(tag.charAt(1), 10);
-        if (lastHeadingLevel && lvl > lastHeadingLevel + 1) {
-          results.push({ ...pos, message: `Heading level skipped: <${tag}> after <h${lastHeadingLevel}>`, rule: 'enforceHeadingOrder' });
-        }
-        lastHeadingLevel = lvl;
-        if (sectionStack.length) sectionStack[sectionStack.length - 1].foundHeading = true;
-      }
-      
-      // img alt
-      if (options.rules.requireAltText && tag === 'img') {
-        const alt = attrs.alt;
-        if (alt === undefined) {
-          results.push({ ...pos, message: '<img> tag missing alt attribute', rule: 'requireAltText' });
-        } else if (!alt.trim()) {
-          results.push({ ...pos, message: '<img> alt attribute is empty', rule: 'requireAltText' });
-        }
-      }
-      
-      // li nesting
-      if (options.rules.enforceListNesting && tag === 'li') {
-        const parent = tagStack[tagStack.length - 2];
-        if (!parent || !['ul','ol'].includes(parent.tag)) {
-          results.push({ ...pos, message: '<li> must be inside a <ul> or <ol>', rule: 'enforceListNesting' });
-        }
-      }
-      
-      // anchor
-      if (tag === 'a') {
-        anchorStack.push({ ...pos, foundText: false });
-        
-        if (options.rules.requireHrefOnAnchors) {
-          const href = attrs.href;
-          if (!href || !href.trim()) results.push({ ...pos, message: '<a> tag missing non-empty href attribute', rule: 'requireHrefOnAnchors' });
-        }
-      }
-
-      // button text
-      if (options.rules.requireButtonText && tag === 'button') {
-        const aria = attrs['aria-label'];
-        buttonStack.push({ ...pos, foundText: !!(aria && aria.trim()) });
-      }
-      
-      // table caption
-      if (tag === 'table') tableStack.push({ ...pos, foundCaption: false });
-      if (tag === 'caption' && tableStack.length) tableStack[tableStack.length - 1].foundCaption = true;
-      
-      // empty inline
-      if (options.rules.preventEmptyInlineTags && inlineTags.has(tag)) emptyStack.push({ ...pos, foundText: false });
-      
-      // section heading
-      if (options.rules.requireSectionHeading && tag === 'section') sectionStack.push({ ...pos, foundHeading: false });
-    },
-    onclosetag(name) {
-      const tag = name.toLowerCase();
+    if (ignoreNext) { ignoreNext = false; tagStack.pop(); return; }
+    if (ignoreBlock) {
+      node.children.forEach(traverse);
       tagStack.pop();
+      return;
+    }
 
-      if (ignoreBlock) return;
-      
-      if (options.rules.preventEmptyInlineTags && inlineTags.has(tag)) {
-        const e = emptyStack.pop();
-        if (e && !e.foundText) results.push({ line: e.line, column: e.column, message: `<${tag}> tag should not be empty`, rule: 'preventEmptyInlineTags' });
-      }
-      
-      if (options.rules.requireLinkText && tag === 'a') {
-        const a = anchorStack.pop();
-        if (a && !a.foundText) results.push({ line: a.line, column: a.column, message: '<a> tag missing link text', rule: 'requireLinkText' });
-      }
+    // labels
+    if (tag === 'label' && node.attrs['for']) labels.add(node.attrs['for']);
 
-      if (tag === 'nav') {
-        const n = navStack.pop();
-        if (n && options.rules.requireNavLinks && !n.hasLink) {
-          results.push({ line: n.line, column: n.column, message: '<nav> contains no links', rule: 'requireNavLinks' });
-        }
-      }
+    // structural tags
+    if (tag === 'main') foundMain = true;
+    if (tag === 'nav') navStack.push({ line: pos.line, column: pos.column, hasLink: false });
+    if (tag === 'a' && navStack.length) navStack[navStack.length - 1].hasLink = true;
 
-      if (options.rules.requireButtonText && tag === 'button') {
-        const b = buttonStack.pop();
-        if (b && !b.foundText) results.push({ line: b.line, column: b.column, message: '<button> missing accessible text', rule: 'requireButtonText' });
-      }
-      
-      if (options.rules.requireSectionHeading && tag === 'section') {
-        const s = sectionStack.pop();
-        if (s && !s.foundHeading) results.push({ line: s.line, column: s.column, message: '<section> missing heading (<h1>-<h6>)', rule: 'requireSectionHeading' });
-      }
-      
-      if (options.rules.requireTableCaption && tag === 'table') {
-        const t = tableStack.pop();
-        if (t && !t.foundCaption) results.push({ line: t.line, column: t.column, message: '<table> missing <caption>', rule: 'requireTableCaption' });
+    if (options.rules.uniqueIds && node.attrs.id) {
+      const idVal = String(node.attrs.id);
+      if (ids.has(idVal)) {
+        results.push({ ...pos, message: `Duplicate id "${idVal}"`, rule: 'uniqueIds' });
+      } else {
+        ids.set(idVal, { line: pos.line, column: pos.column });
       }
     }
-  }, { decodeEntities: true, xmlMode: false, recognizeSelfClosing: true });
 
-  parser.write(html);
-  parser.end();
+    if (options.rules.requireHtmlLang && tag === 'html' && !htmlSeen) {
+      htmlSeen = true;
+      const lang = node.attrs.lang;
+      if (!lang || !lang.trim()) {
+        results.push({ ...pos, message: '<html> element missing lang attribute', rule: 'requireHtmlLang' });
+      }
+    }
+
+    if (options.rules.requireIframeTitle && tag === 'iframe') {
+      const title = node.attrs.title;
+      if (!title || !title.trim()) {
+        results.push({ ...pos, message: '<iframe> missing title attribute', rule: 'requireIframeTitle' });
+      }
+    }
+
+    if (options.rules.requireImageInputAlt && tag === 'input' && node.attrs.type && node.attrs.type.toLowerCase() === 'image') {
+      const alt = node.attrs.alt;
+      if (!alt || !alt.trim()) {
+        results.push({ ...pos, message: '<input type="image"> missing alt attribute', rule: 'requireImageInputAlt' });
+      }
+    }
+
+    if (options.rules.requireLabelForFormControls && ['input','select','textarea'].includes(tag)) {
+      const id = node.attrs.id;
+      const aria = node.attrs['aria-label'];
+      if (!aria || !aria.trim()) {
+        if (!id) results.push({ ...pos, message: 'Form control missing id or aria-label', rule: 'requireLabelForFormControls' });
+        else if (!labels.has(id)) results.push({ ...pos, message: `Form control with id="${id}" missing <label for=\"${id}\">`, rule: 'requireLabelForFormControls' });
+      }
+    }
+
+    if (options.rules.singleH1 && tag === 'h1') {
+      h1Count++;
+      if (h1Count > 1) results.push({ ...pos, message: 'Only one <h1> allowed per document', rule: 'singleH1' });
+    }
+
+    if (options.rules.enforceHeadingOrder && /^h[1-6]$/.test(tag)) {
+      const lvl = parseInt(tag.charAt(1), 10);
+      if (lastHeadingLevel && lvl > lastHeadingLevel + 1) {
+        results.push({ ...pos, message: `Heading level skipped: <${tag}> after <h${lastHeadingLevel}>`, rule: 'enforceHeadingOrder' });
+      }
+      lastHeadingLevel = lvl;
+      if (sectionStack.length) sectionStack[sectionStack.length - 1].foundHeading = true;
+    }
+
+    if (options.rules.requireAltText && tag === 'img') {
+      const alt = node.attrs.alt;
+      if (alt === undefined) {
+        results.push({ ...pos, message: '<img> tag missing alt attribute', rule: 'requireAltText' });
+      } else if (!alt.trim()) {
+        results.push({ ...pos, message: '<img> alt attribute is empty', rule: 'requireAltText' });
+      }
+    }
+
+    if (options.rules.enforceListNesting && tag === 'li') {
+      const parent = tagStack[tagStack.length - 2];
+      if (!parent || !['ul','ol'].includes(parent.tag)) {
+        results.push({ ...pos, message: '<li> must be inside a <ul> or <ol>', rule: 'enforceListNesting' });
+      }
+    }
+
+    if (tag === 'a') {
+      anchorStack.push({ ...pos, foundText: false });
+      if (options.rules.requireHrefOnAnchors) {
+        const href = node.attrs.href;
+        if (!href || !href.trim()) results.push({ ...pos, message: '<a> tag missing non-empty href attribute', rule: 'requireHrefOnAnchors' });
+      }
+    }
+
+    if (options.rules.requireButtonText && tag === 'button') {
+      const aria = node.attrs['aria-label'];
+      buttonStack.push({ ...pos, foundText: !!(aria && aria.trim()) });
+    }
+
+    if (tag === 'table') tableStack.push({ ...pos, foundCaption: false });
+    if (tag === 'caption' && tableStack.length) tableStack[tableStack.length - 1].foundCaption = true;
+
+    if (options.rules.preventEmptyInlineTags && inlineTags.has(tag)) emptyStack.push({ ...pos, tag, foundText: false });
+
+    if (options.rules.requireSectionHeading && tag === 'section') sectionStack.push({ ...pos, foundHeading: false });
+
+    node.children.forEach(traverse);
+
+    // closing tag logic
+    if (ignoreBlock) {
+      tagStack.pop();
+      return;
+    }
+
+    if (options.rules.preventEmptyInlineTags && inlineTags.has(tag)) {
+      const e = emptyStack.pop();
+      if (e && !e.foundText) results.push({ line: e.line, column: e.column, message: `<${tag}> tag should not be empty`, rule: 'preventEmptyInlineTags' });
+    }
+
+    if (options.rules.requireLinkText && tag === 'a') {
+      const a = anchorStack.pop();
+      if (a && !a.foundText) results.push({ line: a.line, column: a.column, message: '<a> tag missing link text', rule: 'requireLinkText' });
+    }
+
+    if (tag === 'nav') {
+      const n = navStack.pop();
+      if (n && options.rules.requireNavLinks && !n.hasLink) {
+        results.push({ line: n.line, column: n.column, message: '<nav> contains no links', rule: 'requireNavLinks' });
+      }
+    }
+
+    if (options.rules.requireButtonText && tag === 'button') {
+      const b = buttonStack.pop();
+      if (b && !b.foundText) results.push({ line: b.line, column: b.column, message: '<button> missing accessible text', rule: 'requireButtonText' });
+    }
+
+    if (options.rules.requireSectionHeading && tag === 'section') {
+      const s = sectionStack.pop();
+      if (s && !s.foundHeading) results.push({ line: s.line, column: s.column, message: '<section> missing heading (<h1>-<h6>)', rule: 'requireSectionHeading' });
+    }
+
+    if (options.rules.requireTableCaption && tag === 'table') {
+      const tEntry = tableStack.pop();
+      if (tEntry && !tEntry.foundCaption) results.push({ line: tEntry.line, column: tEntry.column, message: '<table> missing <caption>', rule: 'requireTableCaption' });
+    }
+
+    tagStack.pop();
+  }
+
+  root.children.forEach(traverse);
 
   if (options.rules.requireNavLinks) {
-    // Unclosed navs shouldn't happen, but flush just in case
     while (navStack.length) {
       const n = navStack.pop();
       if (n && !n.hasLink) results.push({ line: n.line, column: n.column, message: '<nav> contains no links', rule: 'requireNavLinks' });
@@ -290,6 +289,7 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
   if (options.rules.requireMain && !foundMain) {
     results.push({ line: 0, column: 0, message: 'Document missing <main> element', rule: 'requireMain' });
   }
+
   return results;
 }
 
@@ -344,9 +344,9 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
 
     traverse(ast, {
       JSXElement: {
-        enter(path: NodePath<t.JSXElement>) {
+        enter(path: NodePath<JSXElement>) {
           const opening = path.node.openingElement;
-          if (!t.isJSXIdentifier(opening.name)) return;
+          if (!isJSXIdentifier(opening.name)) return;
           const tag = opening.name.name.toLowerCase();
           const loc = opening.loc?.start;
           if (!loc) return;
@@ -355,8 +355,8 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
 
           // labels
           opening.attributes.forEach(attr => {
-            if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'for') {
-              if (t.isStringLiteral(attr.value)) labels.add(attr.value.value);
+            if (isJSXAttribute(attr) && isJSXIdentifier(attr.name) && attr.name.name === 'for') {
+              if (isStringLiteral(attr.value)) labels.add(attr.value.value);
             }
           });
 
@@ -367,7 +367,7 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
           if (options.rules.uniqueIds) {
             let idLiteral: string | undefined;
             opening.attributes.forEach(attr => {
-              if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'id' && t.isStringLiteral(attr.value)) {
+              if (isJSXAttribute(attr) && isJSXIdentifier(attr.name) && attr.name.name === 'id' && isStringLiteral(attr.value)) {
                 idLiteral = attr.value.value;
               }
             });
@@ -383,10 +383,10 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
           if (options.rules.requireHtmlLang && tag === 'html' && !htmlSeen) {
             htmlSeen = true;
             const hasLang = opening.attributes.some(attr =>
-              t.isJSXAttribute(attr) &&
-              t.isJSXIdentifier(attr.name) &&
+              isJSXAttribute(attr) &&
+              isJSXIdentifier(attr.name) &&
               attr.name.name === 'lang' &&
-              t.isStringLiteral(attr.value) && attr.value.value.trim() !== ''
+              isStringLiteral(attr.value) && attr.value.value.trim() !== ''
             );
             if (!hasLang) {
               results.push({ ...pos, message: '<html> element missing lang attribute', rule: 'requireHtmlLang' });
@@ -395,10 +395,10 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
 
           if (options.rules.requireIframeTitle && tag === 'iframe') {
             const hasTitle = opening.attributes.some(attr =>
-              t.isJSXAttribute(attr) &&
-              t.isJSXIdentifier(attr.name) &&
+              isJSXAttribute(attr) &&
+              isJSXIdentifier(attr.name) &&
               attr.name.name === 'title' &&
-              t.isStringLiteral(attr.value) && attr.value.value.trim() !== ''
+              isStringLiteral(attr.value) && attr.value.value.trim() !== ''
             );
             if (!hasTitle) {
               results.push({ ...pos, message: '<iframe> missing title attribute', rule: 'requireIframeTitle' });
@@ -409,11 +409,11 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
             let isImage = false;
             let altVal: string | undefined;
             opening.attributes.forEach(attr => {
-              if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name)) {
-                if (attr.name.name === 'type' && t.isStringLiteral(attr.value)) {
+              if (isJSXAttribute(attr) && isJSXIdentifier(attr.name)) {
+                if (attr.name.name === 'type' && isStringLiteral(attr.value)) {
                   isImage = attr.value.value.toLowerCase() === 'image';
                 }
-                if (attr.name.name === 'alt' && t.isStringLiteral(attr.value)) {
+                if (attr.name.name === 'alt' && isStringLiteral(attr.value)) {
                   altVal = attr.value.value;
                 }
               }
@@ -428,9 +428,9 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
             let idVal: string | undefined;
             let ariaVal: string | undefined;
             opening.attributes.forEach(attr => {
-              if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name)) {
-                if (attr.name.name === 'id' && t.isStringLiteral(attr.value)) idVal = attr.value.value;
-                if (attr.name.name === 'aria-label' && t.isStringLiteral(attr.value)) ariaVal = attr.value.value;
+              if (isJSXAttribute(attr) && isJSXIdentifier(attr.name)) {
+                if (attr.name.name === 'id' && isStringLiteral(attr.value)) idVal = attr.value.value;
+                if (attr.name.name === 'aria-label' && isStringLiteral(attr.value)) ariaVal = attr.value.value;
               }
             });
             if (!ariaVal || !ariaVal.trim()) {
@@ -455,25 +455,25 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
           
           // img alt
           if (options.rules.requireAltText && tag === 'img') {
-            let altAttr: t.JSXAttribute | undefined;
+            let altAttr: JSXAttribute | undefined;
             opening.attributes.forEach(attr => {
-              if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'alt') {
+              if (isJSXAttribute(attr) && isJSXIdentifier(attr.name) && attr.name.name === 'alt') {
                 altAttr = attr;
               }
             });
             if (!altAttr) {
               results.push({ ...pos, message: '<img> tag missing alt attribute', rule: 'requireAltText' });
-            } else if (!t.isStringLiteral(altAttr.value) || altAttr.value.value.trim() === '') {
+            } else if (!isStringLiteral(altAttr.value) || altAttr.value.value.trim() === '') {
               results.push({ ...pos, message: '<img> alt attribute is empty', rule: 'requireAltText' });
             }
           }
           
           // li nesting
           if (options.rules.enforceListNesting && tag === 'li') {
-            const parent = path.parentPath?.node as t.JSXElement;
-            if (t.isJSXElement(parent)) {
+            const parent = path.parentPath?.node as JSXElement;
+            if (isJSXElement(parent)) {
               const p = parent.openingElement.name;
-              if (t.isJSXIdentifier(p)) {
+              if (isJSXIdentifier(p)) {
                 const pTag = p.name.toLowerCase();
                 if (!['ul', 'ol'].includes(pTag)) results.push({ ...pos, message: '<li> must be inside a <ul> or <ol>', rule: 'enforceListNesting' });
               }
@@ -485,13 +485,13 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
             anchorStack.push({ ...pos, foundText: false });
             
             if (options.rules.requireHrefOnAnchors) {
-              const hrefVal = opening.attributes.find(a => 
-                t.isJSXAttribute(a) && 
-                t.isJSXIdentifier((a as t.JSXAttribute).name) && 
-                (a as t.JSXAttribute).name.name === 'href'
-              ) as t.JSXAttribute | undefined;
-              
-              if (!hrefVal || !t.isStringLiteral(hrefVal.value) || !hrefVal.value.value.trim()) {
+              const hrefVal = opening.attributes.find(a =>
+                isJSXAttribute(a) &&
+                isJSXIdentifier((a as JSXAttribute).name) &&
+                (a as JSXAttribute).name.name === 'href'
+              ) as JSXAttribute | undefined;
+
+              if (!hrefVal || !isStringLiteral(hrefVal.value) || !hrefVal.value.value.trim()) {
                 results.push({ ...pos, message: '<a> tag missing non-empty href attribute', rule: 'requireHrefOnAnchors' });
               }
             }
@@ -500,7 +500,7 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
           if (options.rules.requireButtonText && tag === 'button') {
             let hasAria = false;
             opening.attributes.forEach(attr => {
-              if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'aria-label' && t.isStringLiteral(attr.value)) {
+              if (isJSXAttribute(attr) && isJSXIdentifier(attr.name) && attr.name.name === 'aria-label' && isStringLiteral(attr.value)) {
                 if (attr.value.value.trim()) hasAria = true;
               }
             });
@@ -521,9 +521,9 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
             sectionStack.push({ ...pos, foundHeading: false });
           }
         },
-        exit(path: NodePath<t.JSXElement>) {
+        exit(path: NodePath<JSXElement>) {
           const opening = path.node.openingElement;
-          if (!t.isJSXIdentifier(opening.name) || !opening.loc) return;
+          if (!isJSXIdentifier(opening.name) || !opening.loc) return;
           if (isIgnored(opening.loc.start.line)) return;
           const tag = opening.name.name.toLowerCase();
           const pos = { line: opening.loc.start.line - 1, column: opening.loc.start.column };
