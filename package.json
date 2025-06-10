@@ -135,6 +135,11 @@
           "default": true,
           "description": "Warn when a <nav> element contains no links."
         },
+        "zemdomu.rules.uniqueIds": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when multiple elements share the same id." 
+        },
         "zemdomu.severity.requireSectionHeading": {
           "type": "string",
           "enum": ["warning", "error"],
@@ -230,6 +235,12 @@
           "enum": ["warning", "error"],
           "default": "warning",
           "description": "Severity for the requireNavLinks rule."
+        },
+        "zemdomu.severity.uniqueIds": {
+          "type": "string",
+          "enum": ["warning", "error"],
+          "default": "warning",
+          "description": "Severity for the uniqueIds rule."
         }
       }
     }

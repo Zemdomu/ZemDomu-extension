@@ -32,6 +32,7 @@ export interface LinterOptions {
     requireImageInputAlt: boolean;
     requireMain: boolean;
     requireNavLinks: boolean;
+    uniqueIds: boolean;
   };
 }
 
@@ -54,7 +55,8 @@ const defaultOptions: LinterOptions = {
     requireHtmlLang: true,
     requireImageInputAlt: true,
     requireMain: true,
-    requireNavLinks: true
+    requireNavLinks: true,
+    uniqueIds: true
   }
 };
 
@@ -88,6 +90,7 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
   let htmlSeen = false;
   let foundMain = false;
   const navStack: Array<{ line: number; column: number; hasLink: boolean }> = [];
+  const ids = new Map<string, { line: number; column: number }>();
 
   const parser = new Parser({
     oncomment(data) {
@@ -128,6 +131,15 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
       if (tag === 'main') foundMain = true;
       if (tag === 'nav') navStack.push({ line: curLine, column: curCol, hasLink: false });
       if (tag === 'a' && navStack.length) navStack[navStack.length - 1].hasLink = true;
+
+      if (options.rules.uniqueIds && attrs.id) {
+        const idVal = String(attrs.id);
+        if (ids.has(idVal)) {
+          results.push({ ...pos, message: `Duplicate id "${idVal}"`, rule: 'uniqueIds' });
+        } else {
+          ids.set(idVal, { line: curLine, column: curCol });
+        }
+      }
 
       // html lang
       if (options.rules.requireHtmlLang && tag === 'html' && !htmlSeen) {
@@ -328,6 +340,7 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
     let htmlSeen = false;
     let foundMain = false;
     const navStack: Array<{ line: number; column: number; hasLink: boolean }> = [];
+    const ids = new Map<string, { line: number; column: number }>();
 
     traverse(ast, {
       JSXElement: {
@@ -350,6 +363,22 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
           if (tag === 'main') foundMain = true;
           if (tag === 'nav') navStack.push({ line: pos.line, column: pos.column, hasLink: false });
           if (tag === 'a' && navStack.length) navStack[navStack.length - 1].hasLink = true;
+
+          if (options.rules.uniqueIds) {
+            let idLiteral: string | undefined;
+            opening.attributes.forEach(attr => {
+              if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'id' && t.isStringLiteral(attr.value)) {
+                idLiteral = attr.value.value;
+              }
+            });
+            if (idLiteral) {
+              if (ids.has(idLiteral)) {
+                results.push({ ...pos, message: `Duplicate id "${idLiteral}"`, rule: 'uniqueIds' });
+              } else {
+                ids.set(idLiteral, { line: pos.line, column: pos.column });
+              }
+            }
+          }
 
           if (options.rules.requireHtmlLang && tag === 'html' && !htmlSeen) {
             htmlSeen = true;
