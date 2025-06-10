@@ -30,6 +30,8 @@ ZemDomu is a Visual Studio Code extension that provides semantic HTML linting. I
 - Highlights empty `<strong>`, `<em>`, and similar tags
 - Verifies `<a>` tags have both `href` and link text
 - Confirms `<section>` includes a heading
+- Requires a `<main>` element on each page
+- Warns if `<nav>` contains no links
 - Works with `.html`, `.jsx` and `.tsx` files
 - Caches results so subsequent saves only re-check the current file
 - Quick fixes for simple issues like missing `alt` attributes
