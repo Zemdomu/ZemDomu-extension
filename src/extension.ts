@@ -57,6 +57,46 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
         action.diagnostics = [diag];
         action.edit = edit;
         actions.push(action);
+      } else if (diag.message.includes('missing title attribute')) {
+        const edit = new vscode.WorkspaceEdit();
+        edit.insert(document.uri, insertPos, ' title=""');
+        const action = new vscode.CodeAction(
+          'Add empty title attribute',
+          vscode.CodeActionKind.QuickFix
+        );
+        action.diagnostics = [diag];
+        action.edit = edit;
+        actions.push(action);
+      } else if (diag.message.includes('missing lang attribute')) {
+        const edit = new vscode.WorkspaceEdit();
+        edit.insert(document.uri, insertPos, ' lang=""');
+        const action = new vscode.CodeAction(
+          'Add empty lang attribute',
+          vscode.CodeActionKind.QuickFix
+        );
+        action.diagnostics = [diag];
+        action.edit = edit;
+        actions.push(action);
+      } else if (diag.message.includes('accessible text')) {
+        const edit = new vscode.WorkspaceEdit();
+        edit.insert(document.uri, insertPos, ' aria-label=""');
+        const action = new vscode.CodeAction(
+          'Add empty aria-label attribute',
+          vscode.CodeActionKind.QuickFix
+        );
+        action.diagnostics = [diag];
+        action.edit = edit;
+        actions.push(action);
+      } else if (diag.message.includes('input type="image"') && diag.message.includes('alt attribute')) {
+        const edit = new vscode.WorkspaceEdit();
+        edit.insert(document.uri, insertPos, ' alt=""');
+        const action = new vscode.CodeAction(
+          'Add empty alt attribute',
+          vscode.CodeActionKind.QuickFix
+        );
+        action.diagnostics = [diag];
+        action.edit = edit;
+        actions.push(action);
       }
     }
 
