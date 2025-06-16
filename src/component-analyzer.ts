@@ -5,6 +5,7 @@ import traverse from '@babel/traverse';
 import * as t from '@babel/types';
 import { LintResult, LinterOptions } from './linter';
 import { PerformanceDiagnostics } from './performance-diagnostics';
+import { ComponentPathResolver } from './component-path-resolver';
 
 interface ComponentReference {
   name: string;
@@ -42,6 +43,7 @@ export class ComponentAnalyzer {
   private options: LinterOptions;
   private processingComponentStack = new Set<string>(); // To prevent circular references
   private perf?: PerformanceDiagnostics;
+  private resolver = new ComponentPathResolver();
 
   constructor(options: LinterOptions, perf?: PerformanceDiagnostics) {
     this.options = options;
@@ -49,18 +51,22 @@ export class ComponentAnalyzer {
   }
 
   async analyzeFile(uri: vscode.Uri): Promise<ComponentDefinition | null> {
+    const start = Date.now();
     try {
       const document = await vscode.workspace.openTextDocument(uri);
       const content = document.getText();
       if (!/\.(jsx|tsx)$/.test(uri.fsPath)) return null;
-      return this.extractComponentInfo(content, uri.fsPath);
+      const { component, timings } = await this.extractComponentInfo(content, uri.fsPath);
+      timings.total = Date.now() - start;
+      this.perf?.record(uri.fsPath, timings);
+      return component;
     } catch (e) {
       console.error(`[ZemDomu] Error analyzing file ${uri.fsPath}:`, e);
       return null;
     }
   }
 
-  private async extractComponentInfo(content: string, filePath: string): Promise<ComponentDefinition> {
+  private async extractComponentInfo(content: string, filePath: string): Promise<{ component: ComponentDefinition; timings: Record<string, number> }> {
     const timings: Record<string, number> = {};
     let t0 = Date.now();
     const ast = parse(content, { sourceType: 'module', plugins: ['typescript','jsx'] });
@@ -193,38 +199,11 @@ export class ComponentAnalyzer {
 
     // Register component
     this.componentRegistry.set(filePath, componentDef);
-    this.perf?.record(filePath, timings);
-    return componentDef;
+    return { component: componentDef, timings };
   }
 
   private async resolveComponentPath(importPath: string, currentPath: string): Promise<string | null> {
-    try {
-      if (importPath.startsWith('.')) {
-        const base = path.resolve(path.dirname(currentPath), importPath);
-        if (path.extname(base)) {
-          try { await vscode.workspace.fs.stat(vscode.Uri.file(base)); return base; } catch {}
-        } else {
-          for (const ext of ['.tsx','.jsx','.ts','.js']) {
-            const candidate = `${base}${ext}`;
-            try { await vscode.workspace.fs.stat(vscode.Uri.file(candidate)); return candidate; } catch {}
-          }
-          for (const ext of ['.tsx','.jsx','.ts','.js']) {
-            const candidate = path.join(base, `index${ext}`);
-            try { await vscode.workspace.fs.stat(vscode.Uri.file(candidate)); return candidate; } catch {}
-          }
-        }
-        return base;
-      }
-      // Absolute imports
-      const patterns = [`**/${importPath}.{tsx,jsx,ts,js}`, `**/${importPath}/index.{tsx,jsx,ts,js}`];
-      for (const p of patterns) {
-        const matches = await vscode.workspace.findFiles(p, null, 1);
-        if (matches.length) return matches[0].fsPath;
-      }
-      return null;
-    } catch {
-      return null;
-    }
+    return this.resolver.resolve(importPath, currentPath);
   }
 
   registerComponent(component: ComponentDefinition, issues: LintResult[]): void {
