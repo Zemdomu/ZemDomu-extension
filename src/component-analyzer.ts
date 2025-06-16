@@ -155,7 +155,9 @@ export class ComponentAnalyzer {
     t0 = Date.now();
     for (const ref of componentDef.usesComponents) {
       if (ref.rawImportPath) {
+        const t1 = Date.now();
         ref.path = await this.resolveComponentPath(ref.rawImportPath, filePath);
+        timings[`resolve:${ref.rawImportPath}`] = Date.now() - t1;
       }
     }
     timings.resolvePaths = Date.now() - t0;
