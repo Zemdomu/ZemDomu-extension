@@ -6,8 +6,14 @@ export class ComponentPathResolver {
   private static statCache = new Map<string, boolean>();
   private static aliasCache = new Map<string, Map<string, string>>();
   private static unresolved = new Set<string>();
+  private static devMode = false;
   private static tsconfigLoaded = false;
   private static tsAliases: Array<{ prefix: string; wildcard: boolean; targets: string[] }> = [];
+  private static readonly aliasFileLimit = 100;
+
+  static updateDevMode(dev: boolean) {
+    this.devMode = dev;
+  }
 
   private static async loadTsconfig() {
     if (this.tsconfigLoaded) return;
@@ -89,6 +95,7 @@ export class ComponentPathResolver {
       .replace(/\\/g, '/')
       .replace(/\/+$/, '')
       .replace(/\.(tsx|ts|jsx|js)$/, '')
+      .replace(/\/index$/, '')
       .toLowerCase();
   }
 
@@ -107,6 +114,7 @@ export class ComponentPathResolver {
   }
 
   async resolve(importPath: string, currentPath: string): Promise<string | null> {
+    const tStart = Date.now();
     const rawKey = importPath.startsWith('.')
       ? path.resolve(path.dirname(currentPath), importPath)
       : importPath;
@@ -129,7 +137,11 @@ export class ComponentPathResolver {
           let alias = ComponentPathResolver.aliasCache.get(prefix);
           if (!alias) {
             const pattern = `**/${prefix}/**/*.{tsx,jsx,ts,js}`;
-            const files = await vscode.workspace.findFiles(pattern, '**/node_modules/**', 200);
+            const files = await vscode.workspace.findFiles(
+              pattern,
+              '**/node_modules/**',
+              ComponentPathResolver.aliasFileLimit
+            );
             alias = new Map();
             for (const uri of files) {
             const rel = uri.fsPath.replace(/\\/g, '/');
@@ -178,6 +190,10 @@ export class ComponentPathResolver {
     }
     ComponentPathResolver.resolveCache.set(key, result);
     if (result === null) ComponentPathResolver.unresolved.add(key);
+    const tTotal = Date.now() - tStart;
+    if (ComponentPathResolver.devMode) {
+      console.debug(`[ZemDomu] resolved ${importPath} -> ${result} (${tTotal}ms)`);
+    }
     return result;
   }
 }
