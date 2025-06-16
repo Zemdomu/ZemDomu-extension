@@ -55,6 +55,11 @@
           "default": true,
           "description": "Analyze and detect semantic issues across component boundaries"
         },
+        "zemdomu.devMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable developer diagnostics and performance output."
+        },
         "zemdomu.rules.requireSectionHeading": {
           "type": "boolean",
           "default": true,

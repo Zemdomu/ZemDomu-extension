@@ -2,6 +2,7 @@
 import * as vscode from 'vscode';
 import { lintHtml, LinterOptions, LintResult } from './linter';
 import { ComponentAnalyzer } from './component-analyzer';
+import { PerformanceDiagnostics } from './performance-diagnostics';
 
 class ZemCodeActionProvider implements vscode.CodeActionProvider {
   provideCodeActions(
@@ -63,6 +64,10 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
 
 export function activate(context: vscode.ExtensionContext) {
   const diagnostics = vscode.languages.createDiagnosticCollection('zemdomu');
+  const perfDiagnostics = new PerformanceDiagnostics(
+    vscode.workspace.getConfiguration('zemdomu').get('devMode', false)
+  );
+  perfDiagnostics.reportBundleSize(context.extensionPath);
   let saveDisp: vscode.Disposable | undefined;
   let typeDisp: vscode.Disposable | undefined;
   let componentAnalyzer: ComponentAnalyzer | undefined;
@@ -114,7 +119,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       // Also analyze component structure if this is a JSX/TSX file
       if (xmlMode && /\.(jsx|tsx)$/.test(uri.fsPath)) {
         if (!componentAnalyzer) {
-          componentAnalyzer = new ComponentAnalyzer(options);
+          componentAnalyzer = new ComponentAnalyzer(options, perfDiagnostics);
         }
         
         const component = await componentAnalyzer.analyzeFile(uri);
@@ -132,6 +137,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
           getRuleSeverity(r.rule)
         );
       });
+      perfDiagnostics.applyDiagnostics(uri, diags);
       diagnostics.set(uri, diags);
     } catch (e) {
       console.debug('[ZemDomu] lintDocument parse error:', e instanceof Error ? e.message : String(e));
@@ -149,7 +155,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     
     // Create a new component analyzer with current config
     const options = getLinterOptions();
-    componentAnalyzer = new ComponentAnalyzer(options);
+    componentAnalyzer = new ComponentAnalyzer(options, perfDiagnostics);
     
     // Find and analyze all JSX/TSX files first
     const jsxFiles = await vscode.workspace.findFiles('**/*.{jsx,tsx}', '**/node_modules/**');
@@ -172,6 +178,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
         const end = new vscode.Position(r.line, r.column + 1);
         return new vscode.Diagnostic(new vscode.Range(start, end), r.message, getRuleSeverity(r.rule));
       });
+      perfDiagnostics.applyDiagnostics(uri, diags);
       diagnostics.set(uri, diags);
     }));
     
@@ -210,8 +217,10 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
             getRuleSeverity(r.rule)
           );
         });
-        
-        diagnostics.set(uri, [...existingDiags, ...newDiags]);
+
+        const combined = [...existingDiags, ...newDiags];
+        perfDiagnostics.applyDiagnostics(uri, combined);
+        diagnostics.set(uri, combined);
       }
     } else {
       console.debug('[ZemDomu] Skipping cross-component analysis (disabled in settings)');
@@ -282,6 +291,12 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       // If run mode changed, update listeners
       if (e.affectsConfiguration('zemdomu.run')) {
         updateListeners();
+      }
+
+      if (e.affectsConfiguration('zemdomu.devMode')) {
+        perfDiagnostics.updateDevMode(
+          vscode.workspace.getConfiguration('zemdomu').get('devMode', false)
+        );
       }
       
       // If any rules changed, re-run linting

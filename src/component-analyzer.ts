@@ -4,6 +4,7 @@ import { parse } from '@babel/parser';
 import traverse from '@babel/traverse';
 import * as t from '@babel/types';
 import { LintResult, LinterOptions } from './linter';
+import { PerformanceDiagnostics } from './performance-diagnostics';
 
 interface ComponentReference {
   name: string;
@@ -40,9 +41,11 @@ export class ComponentAnalyzer {
   private importToComponentMap = new Map<string, Map<string, string>>();
   private options: LinterOptions;
   private processingComponentStack = new Set<string>(); // To prevent circular references
+  private perf?: PerformanceDiagnostics;
 
-  constructor(options: LinterOptions) {
+  constructor(options: LinterOptions, perf?: PerformanceDiagnostics) {
     this.options = options;
+    this.perf = perf;
   }
 
   async analyzeFile(uri: vscode.Uri): Promise<ComponentDefinition | null> {
@@ -58,7 +61,10 @@ export class ComponentAnalyzer {
   }
 
   private async extractComponentInfo(content: string, filePath: string): Promise<ComponentDefinition> {
+    const timings: Record<string, number> = {};
+    let t0 = Date.now();
     const ast = parse(content, { sourceType: 'module', plugins: ['typescript','jsx'] });
+    timings.parse = Date.now() - t0;
     const componentName = path.basename(filePath, path.extname(filePath));
     const componentDef: ComponentDefinition = {
       name: componentName,
@@ -71,7 +77,8 @@ export class ComponentAnalyzer {
     // Track imported components
     const importedComponents = new Map<string, string>();
     
-    // Collect imports and JSX usages
+    // Collect imports
+    t0 = Date.now();
     traverse(ast, {
       ImportDeclaration(path) {
         const source = path.node.source.value as string;
@@ -83,7 +90,13 @@ export class ComponentAnalyzer {
             }
           }
         });
-      },
+      }
+    });
+    timings.collectImports = Date.now() - t0;
+
+    // Collect JSX usages and headings
+    t0 = Date.now();
+    traverse(ast, {
       JSXElement(path) {
         const elt = path.node.openingElement.name;
         if (t.isJSXIdentifier(elt)) {
@@ -94,21 +107,21 @@ export class ComponentAnalyzer {
             const level = parseInt(tag.charAt(1), 10);
             const loc = elt.loc?.start;
             if (loc) {
-              componentDef.headings.push({ 
-                level, 
-                line: loc.line - 1, 
-                column: loc.column, 
-                filePath 
+              componentDef.headings.push({
+                level,
+                line: loc.line - 1,
+                column: loc.column,
+                filePath
               });
             }
           }
-          
+
           // Record component usage (only for capitalized components)
           if (/^[A-Z]/.test(name)) {
             const existingRef = componentDef.usesComponents.find(c => c.name === name);
             const loc = elt.loc?.start;
             const location = loc ? { line: loc.line - 1, column: loc.column } : { line: 0, column: 0 };
-            
+
             if (existingRef) {
               // Add usage location to existing reference
               existingRef.usageLocations.push(location);
@@ -127,18 +140,22 @@ export class ComponentAnalyzer {
         }
       }
     });
+    timings.jsxCollect = Date.now() - t0;
 
     // Store import mappings for this file
     this.importToComponentMap.set(filePath, importedComponents);
 
     // Resolve import paths
+    t0 = Date.now();
     for (const ref of componentDef.usesComponents) {
       if (ref.rawImportPath) {
         ref.path = await this.resolveComponentPath(ref.rawImportPath, filePath);
       }
     }
+    timings.resolvePaths = Date.now() - t0;
 
     // Check for heading order issues within this component
+    t0 = Date.now();
     if (this.options.rules.enforceHeadingOrder) {
       let lastHeadingLevel = 0;
       const sortedHeadings = [...componentDef.headings].sort((a, b) => {
@@ -172,8 +189,11 @@ export class ComponentAnalyzer {
       }
     }
 
+    timings.headingAnalysis = Date.now() - t0;
+
     // Register component
     this.componentRegistry.set(filePath, componentDef);
+    this.perf?.record(filePath, timings);
     return componentDef;
   }
 
