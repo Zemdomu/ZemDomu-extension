@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { lintHtml, LinterOptions, LintResult } from './linter';
 import { ComponentAnalyzer } from './component-analyzer';
 import { PerformanceDiagnostics } from './performance-diagnostics';
+import * as path from 'path';
 
 class ZemCodeActionProvider implements vscode.CodeActionProvider {
   provideCodeActions(
@@ -231,6 +232,28 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     console.debug(`[ZemDomu] Found ${htmlFiles.length} HTML files to analyze`);
     await Promise.all(htmlFiles.map(uri => lintDocument(uri, false)));
     
+    const dev = vscode.workspace.getConfiguration('zemdomu').get('devMode', false);
+    if (dev) {
+      const metrics = PerformanceDiagnostics.getLatestMetrics();
+      let slowFile = '';
+      let slowTime = 0;
+      let slowPhase = '';
+      let slowPhaseTime = 0;
+      for (const [file, times] of metrics.entries()) {
+        if ((times.total ?? 0) > slowTime) {
+          slowTime = times.total ?? 0;
+          slowFile = file;
+        }
+        for (const [ph, t] of Object.entries(times)) {
+          if (ph !== 'total' && t > slowPhaseTime) {
+            slowPhaseTime = t;
+            slowPhase = ph;
+          }
+        }
+      }
+      perfDiagnostics.log(`Slowest file: ${path.basename(slowFile)} ${slowTime.toFixed(2)}ms`);
+      perfDiagnostics.log(`Slowest phase: ${slowPhase} ${slowPhaseTime.toFixed(2)}ms`);
+    }
     console.debug('[ZemDomu] Workspace lint complete');
     workspaceLinted = true;
   }
