@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { lintHtml, LinterOptions, LintResult } from './linter';
 import { ComponentAnalyzer } from './component-analyzer';
 import { PerformanceDiagnostics } from './performance-diagnostics';
+import { ComponentPathResolver } from './component-path-resolver';
 import * as path from 'path';
 
 class ZemCodeActionProvider implements vscode.CodeActionProvider {
@@ -65,9 +66,9 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
 
 export function activate(context: vscode.ExtensionContext) {
   const diagnostics = vscode.languages.createDiagnosticCollection('zemdomu');
-  const perfDiagnostics = new PerformanceDiagnostics(
-    vscode.workspace.getConfiguration('zemdomu').get('devMode', false)
-  );
+  const devMode = vscode.workspace.getConfiguration('zemdomu').get('devMode', false);
+  const perfDiagnostics = new PerformanceDiagnostics(devMode);
+  ComponentPathResolver.updateDevMode(devMode);
   perfDiagnostics.reportBundleSize(context.extensionPath);
   let saveDisp: vscode.Disposable | undefined;
   let typeDisp: vscode.Disposable | undefined;
@@ -141,7 +142,9 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       perfDiagnostics.applyDiagnostics(uri, diags);
       diagnostics.set(uri, diags);
     } catch (e) {
-      console.debug('[ZemDomu] lintDocument parse error:', e instanceof Error ? e.message : String(e));
+      if (vscode.workspace.getConfiguration('zemdomu').get('devMode', false)) {
+        console.debug('[ZemDomu] lintDocument parse error:', e instanceof Error ? e.message : String(e));
+      }
     }
   }
     async function lintSingleFile(doc: vscode.TextDocument) {
@@ -151,7 +154,8 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
 
 
   async function lintWorkspace() {
-    console.debug('[ZemDomu] Starting workspace lint');
+    const dev = vscode.workspace.getConfiguration('zemdomu').get('devMode', false);
+    if (dev) console.debug('[ZemDomu] Starting workspace lint');
     diagnostics.clear();
     
     // Create a new component analyzer with current config
@@ -160,11 +164,11 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     
     // Find and analyze all JSX/TSX files first
     const jsxFiles = await vscode.workspace.findFiles('**/*.{jsx,tsx}', '**/node_modules/**');
-    console.debug(`[ZemDomu] Found ${jsxFiles.length} JSX/TSX files to analyze`);
+    if (dev) console.debug(`[ZemDomu] Found ${jsxFiles.length} JSX/TSX files to analyze`);
     
     // First pass: analyze all components
     await Promise.all(jsxFiles.map(async uri => {
-      console.debug(`[ZemDomu] Analyzing component: ${uri.fsPath}`);
+      if (dev) console.debug(`[ZemDomu] Analyzing component: ${uri.fsPath}`);
       const text = (await vscode.workspace.openTextDocument(uri)).getText();
       let results = lintHtml(text, true, options);
 
@@ -185,9 +189,9 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     
     // Second pass: run cross-component analysis
     if (componentAnalyzer && options.crossComponentAnalysis) {
-      console.debug('[ZemDomu] Running cross-component analysis');
+      if (dev) console.debug('[ZemDomu] Running cross-component analysis');
       const crossComponentResults = componentAnalyzer.analyzeComponentTree();
-      console.debug(`[ZemDomu] Found ${crossComponentResults.length} cross-component issues`);
+      if (dev) console.debug(`[ZemDomu] Found ${crossComponentResults.length} cross-component issues`);
       
       // Group results by file
       const resultsByFile = new Map<string, LintResult[]>();
@@ -205,7 +209,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       
       // Add diagnostics for each file
       for (const [filePath, fileResults] of resultsByFile.entries()) {
-        console.debug(`[ZemDomu] Adding ${fileResults.length} cross-component issues to ${filePath}`);
+        if (dev) console.debug(`[ZemDomu] Adding ${fileResults.length} cross-component issues to ${filePath}`);
         const uri = vscode.Uri.file(filePath);
         const existingDiags = diagnostics.get(uri) || [];
         
@@ -224,15 +228,14 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
         diagnostics.set(uri, combined);
       }
     } else {
-      console.debug('[ZemDomu] Skipping cross-component analysis (disabled in settings)');
+      if (dev) console.debug('[ZemDomu] Skipping cross-component analysis (disabled in settings)');
     }
     
     // Also analyze HTML files
     const htmlFiles = await vscode.workspace.findFiles('**/*.html', '**/node_modules/**');
-    console.debug(`[ZemDomu] Found ${htmlFiles.length} HTML files to analyze`);
+    if (dev) console.debug(`[ZemDomu] Found ${htmlFiles.length} HTML files to analyze`);
     await Promise.all(htmlFiles.map(uri => lintDocument(uri, false)));
     
-    const dev = vscode.workspace.getConfiguration('zemdomu').get('devMode', false);
     if (dev) {
       const metrics = PerformanceDiagnostics.getLatestMetrics();
       let slowFile = '';
@@ -254,7 +257,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       perfDiagnostics.log(`Slowest file: ${path.basename(slowFile)} ${slowTime.toFixed(2)}ms`);
       perfDiagnostics.log(`Slowest phase: ${slowPhase} ${slowPhaseTime.toFixed(2)}ms`);
     }
-    console.debug('[ZemDomu] Workspace lint complete');
+    if (dev) console.debug('[ZemDomu] Workspace lint complete');
     workspaceLinted = true;
   }
 
@@ -317,9 +320,9 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       }
 
       if (e.affectsConfiguration('zemdomu.devMode')) {
-        perfDiagnostics.updateDevMode(
-          vscode.workspace.getConfiguration('zemdomu').get('devMode', false)
-        );
+        const dev = vscode.workspace.getConfiguration('zemdomu').get('devMode', false);
+        perfDiagnostics.updateDevMode(dev);
+        ComponentPathResolver.updateDevMode(dev);
       }
       
       // If any rules changed, re-run linting
