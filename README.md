@@ -9,75 +9,118 @@
 </p>
 
 <p align="center">
+  <a href="https://marketplace.visualstudio.com/items?itemName=ZachariasErydBerlin.zemdomu">
+    <img src="https://img.shields.io/visual-studio-marketplace/v/ZachariasErydBerlin.zemdomu?label=VS%20Code" alt="VS Code Marketplace" />
+  </a>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" />
-  <img src="https://img.shields.io/visual-studio-marketplace/v/ZachariasErydBerlin.zemdomu?label=VS%20Code" alt="VS Code Marketplace">
 </p>
 
-# ZemDomu User Guide
+---
 
-ZemDomu is a Visual Studio Code extension that provides semantic HTML linting. It helps catch common accessibility and structural issues in HTML, JSX and TSX files.
+## 🧠 What is ZemDomu?
 
-## Features
+**ZemDomu** is a VS Code extension that **lints for semantic HTML issues**, going beyond syntax to catch deeper structural and accessibility problems in your HTML, JSX, and TSX files.
 
-- Warns when `<li>` is not inside `<ul>` or `<ol>`
-- Ensures correct heading order (`<h1>` → `<h2>` → `<h3>`…)
-- Flags missing `alt` attributes on `<img>`
-- Ensures `<button>` elements have accessible text
-- Requires `<iframe>` tags to include a `title`
-- Enforces `lang` on the `<html>` element
-- Checks `<input type="image">` for `alt` text
-- Detects form fields missing `aria-label` or `<label for="">`
-- Warns when multiple elements share the same `id`
-- Highlights empty `<strong>`, `<em>`, and similar tags
-- Verifies `<a>` tags have both `href` and link text
-- Confirms `<section>` includes a heading
-- Warns if `<nav>` contains no links
-- Works with `.html`, `.jsx` and `.tsx` files
-- Caches results so subsequent saves only re-check the current file
-- Quick fixes for simple issues like missing `alt` attributes
+It runs automatically on save and integrates with the **Problems tab** and inline diagnostics to help you build better markup, instantly.
 
-## Why ZemDomu?
+---
 
-Most HTML linters focus on syntax or style. **ZemDomu** goes deeper by catching subtle issues that affect:
+## ✨ Features
 
-- **Accessibility** — screen reader compatibility
-- **SEO** — logical heading structure
-- **Semantic structure** — clean, meaningful markup
+* 🔍 Warns when `<li>` is outside a `<ul>` or `<ol>`
+* 🧫 Enforces correct heading levels (`<h1>` → `<h2>` → ...)
+* 🖼 Flags missing `alt` on `<img>`
+* 🧠 Requires accessible text on `<button>`
+* 🔒 Checks that `<iframe>` has a `title`
+* 🌍 Requires `lang` attribute on `<html>`
+* 📸 Validates `alt` on `<input type="image">`
+* 🧾 Detects form controls without `aria-label` or `<label for="">`
+* 🆔 Warns on duplicate `id` attributes
+* 💬 Highlights empty semantic tags (`<strong>`, `<em>`, etc.)
+* 🔗 Flags `<a>` tags missing `href` or visible text
+* 🧹 Ensures every `<section>` has a heading
+* 🧽 Warns if `<nav>` contains no links
+* 🧠 Cross-component JSX analysis
+* ⚡ Caching for fast re-linting
+* 🛠 Quick fixes for common issues
 
-It runs automatically on save and integrates into the **Problems** tab for a seamless workflow.
+---
 
-## Getting Started
+## 🌟 Why Use ZemDomu?
 
-### Install
+Most linters focus on **syntax** or **style**. ZemDomu catches **semantic violations** that impact:
 
-Install directly from the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ZachariasErydBerlin.zemdomu).
+* **Accessibility** – screen reader & assistive tech compatibility
+* **SEO** – semantic structure and crawlability
+* **UX** – cleaner, more consistent user experiences
 
-Or search for **ZemDomu** in the VS Code Extensions view.
+---
 
-### Usage
+## 🚀 Getting Started
 
-1. Open an `.html`, `.jsx`, or `.tsx` file.
-2. Save the file.
-3. Semantic issues appear in the **Problems** tab (`Ctrl+Shift+M`).
+### 🔧 Installation
 
-## Configuration
+* Install via [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=ZachariasErydBerlin.zemdomu)
+* Or search for `ZemDomu` inside the VS Code Extensions panel
 
-ZemDomu can be configured through VS Code settings. Search for **ZemDomu** in the Settings UI or edit `settings.json` directly:
+### ⚙️ Usage
 
-- `zemdomu.run` – control when linting runs (`onSave`, `onType`, `manual`, or `disabled`)
-- `zemdomu.crossComponentAnalysis` – analyze JSX components across files
-- `zemdomu.rules.*` – enable or disable individual semantic rules
+1. Open any `.html`, `.jsx`, or `.tsx` file
+2. Make changes and save
+3. Issues show up instantly in:
 
-### Inline Rule Controls
+   * **Problems tab** (`Ctrl+Shift+M`)
+   * Red squiggly underlines in the editor
 
-You can selectively disable ZemDomu using special comments:
+---
 
-- `<!-- zemdomu-disable-next -->` – skip linting for the next element
-- `<!-- zemdomu-disable -->` – start a block where linting is disabled
-- `<!-- zemdomu-enable -->` – re-enable linting after a disabled block
+## 🛠 Configuration
 
-For JSX/TSX files use the JSX comment syntax, e.g. `{/* zemdomu-disable */}`.
+Customize how ZemDomu behaves through the VS Code **Settings UI** or your `settings.json`.
 
-## License
+#### 🔀 Lint Trigger
 
-MIT © 2025 Zacharias Eryd Berlin
+```json
+"zemdomu.run": "onSave" // other options: "onType", "manual", "disabled"
+```
+
+#### 🧹 Cross-Component Analysis
+
+```json
+"zemdomu.crossComponentAnalysis": true
+```
+
+#### 🧪 Rule Toggle
+
+Enable/disable specific rules:
+
+```json
+"zemdomu.rules.enforceHeadingOrder": true
+"zemdomu.rules.requireAltText": false
+```
+
+#### 🧃 Inline Disabling (HTML/JSX)
+
+```html
+<!-- zemdomu-disable-next -->
+<!-- zemdomu-disable -->
+<!-- zemdomu-enable -->
+```
+
+```jsx
+{/* zemdomu-disable-next */}
+```
+
+---
+
+## 📌 Related
+
+* [Extension Page](https://marketplace.visualstudio.com/items?itemName=ZachariasErydBerlin.zemdomu)
+* [Issues & Suggestions](https://github.com/Zelcus/ZemDomu/issues)
+* [Contribution Guide](https://github.com/Zelcus/ZemDomu#contributing)
+
+---
+
+## 📄 License
+
+MIT © 2025 [Zacharias Eryd Berlin](https://github.com/Zelcus)
