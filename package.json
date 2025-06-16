@@ -138,101 +138,149 @@
         "zemdomu.rules.uniqueIds": {
           "type": "boolean",
           "default": true,
-          "description": "Warn when multiple elements share the same id." 
+          "description": "Warn when multiple elements share the same id."
         },
         "zemdomu.severity.requireSectionHeading": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the requireSectionHeading rule."
         },
         "zemdomu.severity.enforceHeadingOrder": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the enforceHeadingOrder rule."
         },
         "zemdomu.severity.singleH1": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the singleH1 rule."
         },
         "zemdomu.severity.requireAltText": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the requireAltText rule."
         },
         "zemdomu.severity.requireLabelForFormControls": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the requireLabelForFormControls rule."
         },
         "zemdomu.severity.enforceListNesting": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the enforceListNesting rule."
         },
         "zemdomu.severity.requireLinkText": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the requireLinkText rule."
         },
         "zemdomu.severity.requireTableCaption": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the requireTableCaption rule."
         },
         "zemdomu.severity.preventEmptyInlineTags": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the preventEmptyInlineTags rule."
         },
         "zemdomu.severity.requireHrefOnAnchors": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the requireHrefOnAnchors rule."
         },
         "zemdomu.severity.requireButtonText": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the requireButtonText rule."
         },
         "zemdomu.severity.requireIframeTitle": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the requireIframeTitle rule."
         },
         "zemdomu.severity.requireHtmlLang": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the requireHtmlLang rule."
         },
         "zemdomu.severity.requireImageInputAlt": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the requireImageInputAlt rule."
         },
         "zemdomu.severity.requireNavLinks": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the requireNavLinks rule."
         },
         "zemdomu.severity.uniqueIds": {
           "type": "string",
-          "enum": ["warning", "error"],
+          "enum": [
+            "warning",
+            "error"
+          ],
           "default": "warning",
           "description": "Severity for the uniqueIds rule."
         }
@@ -248,19 +296,18 @@
     "publish-all": "npm install && npm run compile && npm run bundle && npm run package"
   },
   "devDependencies": {
+    "@babel/parser": "^7.27.0",
+    "@babel/traverse": "^7.27.0",
+    "@babel/types": "^7.27.0",
     "@types/babel__traverse": "^7.20.7",
+    "@types/jest": "^29.5.3",
     "@types/node": "^22.15.17",
     "@types/vscode": "^1.98.0",
     "@vscode/vsce": "^2.0.0",
-    "typescript": "^5.8.2",
+    "esbuild": "^0.25.5",
     "jest": "^29.7.0",
-    "@types/jest": "^29.5.3",
-    "esbuild": "^0.20.0",
-    "@babel/parser": "^7.27.0",
-    "@babel/traverse": "^7.27.0",
-    "@babel/types": "^7.27.0"
+    "typescript": "^5.8.2"
   },
-  "dependencies": {},
   "icon": "images/icon.png",
   "readme": "docs/USER_GUIDE.md",
   "galleryBanner": {
