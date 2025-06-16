@@ -1,9 +1,19 @@
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
+// Optional runtime import so this file can be used without VS Code loaded
+let vscodeApi: typeof import('vscode') | undefined;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  vscodeApi = require('vscode');
+} catch {
+  vscodeApi = undefined;
+}
+
 export class PerformanceDiagnostics {
-  private channel = vscode.window.createOutputChannel('ZemDomu Perf');
+  private static latestMetrics = new Map<string, Record<string, number>>();
+  private channel: vscode.OutputChannel | null = vscodeApi ? vscodeApi.window.createOutputChannel('ZemDomu Perf') : null;
   private devMode: boolean;
   private pending = new Map<string, string>();
 
@@ -11,28 +21,41 @@ export class PerformanceDiagnostics {
     this.devMode = devMode;
   }
 
+  static getLatestMetrics(): Map<string, Record<string, number>> {
+    return this.latestMetrics;
+  }
+
+  getAsJSON(): string {
+    return JSON.stringify(Object.fromEntries(PerformanceDiagnostics.latestMetrics), null, 2);
+  }
+
   updateDevMode(devMode: boolean) {
     this.devMode = devMode;
   }
 
   record(filePath: string, timings: Record<string, number>) {
+    PerformanceDiagnostics.latestMetrics.set(
+      filePath,
+      JSON.parse(JSON.stringify(timings))
+    );
+
+    if (!this.devMode || !this.channel) return;
+
     const msg = `${path.basename(filePath)} => ` +
       Object.entries(timings)
         .map(([k, v]) => `${k}:${v.toFixed(2)}ms`)
         .join(' | ');
     this.channel.appendLine(msg);
-    if (this.devMode) {
-      this.pending.set(filePath, msg);
-    }
+    this.pending.set(filePath, msg);
   }
 
   applyDiagnostics(uri: vscode.Uri, diags: vscode.Diagnostic[]) {
-    if (this.devMode && this.pending.has(uri.fsPath)) {
+    if (this.devMode && this.channel && vscodeApi && this.pending.has(uri.fsPath)) {
       const msg = this.pending.get(uri.fsPath)!;
-      const diag = new vscode.Diagnostic(
-        new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 1)),
+      const diag = new vscodeApi.Diagnostic(
+        new vscodeApi.Range(new vscodeApi.Position(0, 0), new vscodeApi.Position(0, 1)),
         msg,
-        vscode.DiagnosticSeverity.Information
+        vscodeApi.DiagnosticSeverity.Information
       );
       diag.source = 'ZemDomu Perf';
       diags.push(diag);
@@ -58,7 +81,9 @@ export class PerformanceDiagnostics {
     try {
       const size = (await fs.stat(target)).size;
       const kb = (size / 1024).toFixed(2);
-      this.channel.appendLine(`Bundle size (${path.basename(target)}): ${kb} KB`);
+      if (this.devMode && this.channel) {
+        this.channel.appendLine(`Bundle size (${path.basename(target)}): ${kb} KB`);
+      }
     } catch {
       // ignore
     }
