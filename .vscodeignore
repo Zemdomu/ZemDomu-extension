@@ -1,0 +1,38 @@
+# Node + Yarn
+node_modules/
+node_modules/@types
+node_modules/@babel/parser/lib/**/*.map
+node_modules/@babel/traverse/lib/**/*.map
+node_modules/@babel/types/lib/**/*.map
+yarn.lock
+
+# Source files
+src/
+*.ts
+*.tsx
+tsconfig.json
+
+# Build/test/config files
+.vscode/
+.vscode-test/
+*.map
+*.test.*
+*.spec.*
+
+# Git stuff
+.git/
+.gitignore
+
+# Documentation and tests
+docs/
+tests/
+
+# Type declaration files
+types/
+
+# GitHub metadata
+.github/
+
+# Non-icon images
+images/*
+!images/icon.png

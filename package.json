@@ -1,0 +1,317 @@
+{
+  "name": "zemdomu",
+  "displayName": "ZemDomu",
+  "publisher": "ZachariasErydBerlin",
+  "description": "A semantic linter for HTML and JSX/TSX with cross-component analysis",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Zelcus/ZemDomu.git"
+  },
+  "version": "0.0.3",
+  "engines": {
+    "vscode": "^1.98.0"
+  },
+  "categories": [
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:html",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescriptreact",
+    "onCommand:zemdomu.lintWorkspace"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "zemdomu.lintWorkspace",
+        "title": "ZemDomu: Scan Workspace for Semantic Issues"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "zemdomu.lintWorkspace",
+        "key": "ctrl+alt+z",
+        "mac": "cmd+alt+z",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "ZemDomu Settings",
+      "properties": {
+        "zemdomu.run": {
+          "type": "string",
+          "enum": [
+            "onSave",
+            "onType",
+            "manual",
+            "disabled"
+          ],
+          "default": "onSave",
+          "description": "When to run semantic linting:\n• onSave — after each file save\n• onType — as you type\n• manual — only via the Scan Workspace command\n• disabled — never run automatically"
+        },
+        "zemdomu.crossComponentAnalysis": {
+          "type": "boolean",
+          "default": true,
+          "description": "Analyze and detect semantic issues across component boundaries"
+        },
+        "zemdomu.devMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable developer diagnostics and performance output."
+        },
+        "zemdomu.rules.requireSectionHeading": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when a <section> has no heading."
+        },
+        "zemdomu.rules.enforceHeadingOrder": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn if heading levels skip (e.g. <h3> after <h1> without <h2>)."
+        },
+        "zemdomu.rules.singleH1": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn if more than one <h1> is used in a document."
+        },
+        "zemdomu.rules.requireAltText": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when an <img> tag is missing a non-empty alt attribute."
+        },
+        "zemdomu.rules.requireLabelForFormControls": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when a form control (input, select, textarea) doesn't have an associated label."
+        },
+        "zemdomu.rules.enforceListNesting": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when an <li> element is not a direct child of <ul> or <ol>."
+        },
+        "zemdomu.rules.requireLinkText": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when an <a> tag doesn't contain any text content."
+        },
+        "zemdomu.rules.requireTableCaption": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when a <table> is missing a <caption> element."
+        },
+        "zemdomu.rules.preventEmptyInlineTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when inline tags (strong, em, b, i, etc.) are empty."
+        },
+        "zemdomu.rules.requireHrefOnAnchors": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when an <a> tag is missing a non-empty href attribute."
+        },
+        "zemdomu.rules.requireButtonText": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when a <button> lacks accessible text or aria-label."
+        },
+        "zemdomu.rules.requireIframeTitle": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when an <iframe> is missing a title attribute."
+        },
+        "zemdomu.rules.requireHtmlLang": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when the <html> tag lacks a lang attribute."
+        },
+        "zemdomu.rules.requireImageInputAlt": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when <input type=\"image\"> is missing alt text."
+        },
+        "zemdomu.rules.requireNavLinks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when a <nav> element contains no links."
+        },
+        "zemdomu.rules.uniqueIds": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when multiple elements share the same id."
+        },
+        "zemdomu.severity.requireSectionHeading": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the requireSectionHeading rule."
+        },
+        "zemdomu.severity.enforceHeadingOrder": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the enforceHeadingOrder rule."
+        },
+        "zemdomu.severity.singleH1": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the singleH1 rule."
+        },
+        "zemdomu.severity.requireAltText": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the requireAltText rule."
+        },
+        "zemdomu.severity.requireLabelForFormControls": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the requireLabelForFormControls rule."
+        },
+        "zemdomu.severity.enforceListNesting": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the enforceListNesting rule."
+        },
+        "zemdomu.severity.requireLinkText": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the requireLinkText rule."
+        },
+        "zemdomu.severity.requireTableCaption": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the requireTableCaption rule."
+        },
+        "zemdomu.severity.preventEmptyInlineTags": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the preventEmptyInlineTags rule."
+        },
+        "zemdomu.severity.requireHrefOnAnchors": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the requireHrefOnAnchors rule."
+        },
+        "zemdomu.severity.requireButtonText": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the requireButtonText rule."
+        },
+        "zemdomu.severity.requireIframeTitle": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the requireIframeTitle rule."
+        },
+        "zemdomu.severity.requireHtmlLang": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the requireHtmlLang rule."
+        },
+        "zemdomu.severity.requireImageInputAlt": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the requireImageInputAlt rule."
+        },
+        "zemdomu.severity.requireNavLinks": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the requireNavLinks rule."
+        },
+        "zemdomu.severity.uniqueIds": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the uniqueIds rule."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./tsconfig.json",
+    "watch": "tsc -w",
+    "bundle": "esbuild out/extension.js --bundle --platform=node --minify --external:vscode --outfile=dist/extension.js",
+    "package": "vsce package",
+    "test": "npm run compile && npm run bundle && node tests/inline-disable.test.js && node tests/linter-labels.test.js && node tests/unique-ids.test.js && node tests/package-size.test.js",
+    "publish-all": "npm install && npm run compile && npm run bundle && npm run package"
+  },
+  "devDependencies": {
+    "@babel/parser": "^7.27.0",
+    "@babel/traverse": "^7.27.0",
+    "@babel/types": "^7.27.0",
+    "@types/babel__traverse": "^7.20.7",
+    "@types/jest": "^29.5.3",
+    "@types/node": "^22.15.17",
+    "@types/vscode": "^1.98.0",
+    "@vscode/vsce": "^2.0.0",
+    "esbuild": "^0.25.5",
+    "jest": "^29.7.0",
+    "typescript": "^5.8.2"
+  },
+  "icon": "images/icon.png",
+  "readme": "docs/USER_GUIDE.md",
+  "galleryBanner": {
+    "color": "#2D2D2D",
+    "theme": "dark"
+  }
+}
