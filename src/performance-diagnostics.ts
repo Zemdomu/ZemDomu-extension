@@ -25,12 +25,22 @@ export class PerformanceDiagnostics {
     return this.latestMetrics;
   }
 
+  static resetMetrics(): void {
+    this.latestMetrics.clear();
+  }
+
   getAsJSON(): string {
     return JSON.stringify(Object.fromEntries(PerformanceDiagnostics.latestMetrics), null, 2);
   }
 
   updateDevMode(devMode: boolean) {
     this.devMode = devMode;
+  }
+
+  log(msg: string) {
+    if (this.devMode && this.channel) {
+      this.channel.appendLine(msg);
+    }
   }
 
   record(filePath: string, timings: Record<string, number>) {
@@ -46,6 +56,7 @@ export class PerformanceDiagnostics {
         .map(([k, v]) => `${k}:${v.toFixed(2)}ms`)
         .join(' | ');
     this.channel.appendLine(msg);
+    this.logMemoryUsage();
     this.pending.set(filePath, msg);
   }
 
@@ -86,6 +97,13 @@ export class PerformanceDiagnostics {
       }
     } catch {
       // ignore
+    }
+  }
+
+  private logMemoryUsage() {
+    if (this.devMode && this.channel) {
+      const mem = process.memoryUsage().rss / 1024 / 1024;
+      this.channel.appendLine(`Memory usage: ${mem.toFixed(1)} MB`);
     }
   }
 }
