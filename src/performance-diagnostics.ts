@@ -61,15 +61,9 @@ export class PerformanceDiagnostics {
   }
 
   applyDiagnostics(uri: vscode.Uri, diags: vscode.Diagnostic[]) {
-    if (this.devMode && this.channel && vscodeApi && this.pending.has(uri.fsPath)) {
+    if (this.devMode && this.channel && this.pending.has(uri.fsPath)) {
       const msg = this.pending.get(uri.fsPath)!;
-      const diag = new vscodeApi.Diagnostic(
-        new vscodeApi.Range(new vscodeApi.Position(0, 0), new vscodeApi.Position(0, 1)),
-        msg,
-        vscodeApi.DiagnosticSeverity.Information
-      );
-      diag.source = 'ZemDomu Perf';
-      diags.push(diag);
+      this.channel.appendLine(`[Perf] ${msg}`);
       this.pending.delete(uri.fsPath);
     }
   }
