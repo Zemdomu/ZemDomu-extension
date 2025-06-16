@@ -83,7 +83,7 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
   let h1Count = 0;
   const sectionStack: Array<{ foundHeading: boolean; line: number; column: number }> = [];
   const anchorStack: Array<{ foundText: boolean; line: number; column: number }> = [];
-  const buttonStack: Array<{ foundText: boolean; line: number; column: number }> = [];
+  const buttonStack: Array<{ foundText: boolean; line: number; column: number; hadEmptyAria: boolean }> = [];
   const tableStack: Array<{ foundCaption: boolean; line: number; column: number }> = [];
   const emptyStack: Array<{ tag: string; foundText: boolean; line: number; column: number }> = [];
   const labels = new Set<string>();
@@ -152,22 +152,28 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
     if (options.rules.requireHtmlLang && tag === 'html' && !htmlSeen) {
       htmlSeen = true;
       const lang = node.attrs.lang;
-      if (!lang || !lang.trim()) {
+      if (lang === undefined) {
         results.push({ ...pos, message: '<html> element missing lang attribute', rule: 'requireHtmlLang' });
+      } else if (!String(lang).trim()) {
+        results.push({ ...pos, message: '<html> lang attribute is empty', rule: 'requireHtmlLang' });
       }
     }
 
     if (options.rules.requireIframeTitle && tag === 'iframe') {
       const title = node.attrs.title;
-      if (!title || !title.trim()) {
+      if (title === undefined) {
         results.push({ ...pos, message: '<iframe> missing title attribute', rule: 'requireIframeTitle' });
+      } else if (!String(title).trim()) {
+        results.push({ ...pos, message: '<iframe> title attribute is empty', rule: 'requireIframeTitle' });
       }
     }
 
     if (options.rules.requireImageInputAlt && tag === 'input' && node.attrs.type && node.attrs.type.toLowerCase() === 'image') {
       const alt = node.attrs.alt;
-      if (!alt || !alt.trim()) {
+      if (alt === undefined) {
         results.push({ ...pos, message: '<input type="image"> missing alt attribute', rule: 'requireImageInputAlt' });
+      } else if (!String(alt).trim()) {
+        results.push({ ...pos, message: '<input type="image"> alt attribute is empty', rule: 'requireImageInputAlt' });
       }
     }
 
@@ -220,7 +226,11 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
 
     if (options.rules.requireButtonText && tag === 'button') {
       const aria = node.attrs['aria-label'];
-      buttonStack.push({ ...pos, foundText: !!(aria && aria.trim()) });
+      buttonStack.push({
+        ...pos,
+        foundText: !!(aria && aria.trim()),
+        hadEmptyAria: aria !== undefined && !String(aria).trim()
+      });
     }
 
     if (tag === 'table') tableStack.push({ ...pos, foundCaption: false });
@@ -257,7 +267,13 @@ function lintHtmlString(html: string, options: LinterOptions): LintResult[] {
 
     if (options.rules.requireButtonText && tag === 'button') {
       const b = buttonStack.pop();
-      if (b && !b.foundText) results.push({ line: b.line, column: b.column, message: '<button> missing accessible text', rule: 'requireButtonText' });
+      if (b && !b.foundText) {
+        if (b.hadEmptyAria) {
+          results.push({ line: b.line, column: b.column, message: '<button> aria-label attribute is empty', rule: 'requireButtonText' });
+        } else {
+          results.push({ line: b.line, column: b.column, message: '<button> missing accessible text', rule: 'requireButtonText' });
+        }
+      }
     }
 
     if (options.rules.requireSectionHeading && tag === 'section') {
@@ -327,7 +343,7 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
     let h1Count = 0;
     const sectionStack: Array<{ foundHeading: boolean; line: number; column: number }> = [];
     const anchorStack: Array<{ foundText: boolean; line: number; column: number }> = [];
-    const buttonStack: Array<{ foundText: boolean; line: number; column: number }> = [];
+    const buttonStack: Array<{ foundText: boolean; line: number; column: number; hadEmptyAria: boolean }> = [];
     const tableStack: Array<{ foundCaption: boolean; line: number; column: number }> = [];
     const emptyStack: Array<{ tag: string; foundText: boolean; line: number; column: number }> = [];
     const labels = new Set<string>();
@@ -491,12 +507,14 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
 
           if (options.rules.requireButtonText && tag === 'button') {
             let hasAria = false;
+            let emptyAria = false;
             opening.attributes.forEach(attr => {
               if (isJSXAttribute(attr) && isJSXIdentifier(attr.name) && attr.name.name === 'aria-label' && isStringLiteral(attr.value)) {
                 if (attr.value.value.trim()) hasAria = true;
+                else emptyAria = true;
               }
             });
-            buttonStack.push({ ...pos, foundText: hasAria });
+            buttonStack.push({ ...pos, foundText: hasAria, hadEmptyAria: emptyAria });
           }
           
           // table caption
@@ -539,7 +557,13 @@ function lintJsx(code: string, options: LinterOptions): LintResult[] {
 
           if (options.rules.requireButtonText && tag === 'button') {
             const b = buttonStack.pop();
-            if (b && !b.foundText) results.push({ ...b, message: '<button> missing accessible text', rule: 'requireButtonText' });
+            if (b && !b.foundText) {
+              if (b.hadEmptyAria) {
+                results.push({ ...b, message: '<button> aria-label attribute is empty', rule: 'requireButtonText' });
+              } else {
+                results.push({ ...b, message: '<button> missing accessible text', rule: 'requireButtonText' });
+              }
+            }
           }
           
           if (options.rules.requireSectionHeading && tag === 'section') {
