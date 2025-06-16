@@ -57,7 +57,7 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
         action.diagnostics = [diag];
         action.edit = edit;
         actions.push(action);
-      } else if (diag.message.includes('missing title attribute')) {
+      } else if (diag.message.includes('missing title attribute') || diag.message.includes('title attribute is empty')) {
         const edit = new vscode.WorkspaceEdit();
         edit.insert(document.uri, insertPos, ' title=""');
         const action = new vscode.CodeAction(
@@ -67,7 +67,7 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
         action.diagnostics = [diag];
         action.edit = edit;
         actions.push(action);
-      } else if (diag.message.includes('missing lang attribute')) {
+      } else if (diag.message.includes('missing lang attribute') || diag.message.includes('lang attribute is empty')) {
         const edit = new vscode.WorkspaceEdit();
         edit.insert(document.uri, insertPos, ' lang=""');
         const action = new vscode.CodeAction(
@@ -77,7 +77,7 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
         action.diagnostics = [diag];
         action.edit = edit;
         actions.push(action);
-      } else if (diag.message.includes('accessible text')) {
+      } else if (diag.message.includes('accessible text') || diag.message.includes('aria-label attribute is empty')) {
         const edit = new vscode.WorkspaceEdit();
         edit.insert(document.uri, insertPos, ' aria-label=""');
         const action = new vscode.CodeAction(
