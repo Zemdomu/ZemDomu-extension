@@ -149,6 +149,10 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     return setting === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning;
   }
 
+  function isCrossMessage(msg: string): boolean {
+    return msg.startsWith('Multiple <h1>') || msg.startsWith('Cross-component heading level skipped');
+  }
+
   async function lintDocument(uri: vscode.Uri, xmlMode: boolean) {
     try {
       if (uri.fsPath.includes('node_modules')) {
@@ -170,8 +174,36 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
         if (component) {
           componentAnalyzer.registerComponent(component, results);
         }
+
+        if (options.crossComponentAnalysis) {
+          const crossResults = componentAnalyzer.analyzeComponentTree();
+          const byFile = new Map<string, LintResult[]>();
+          for (const r of crossResults) {
+            if (!r.filePath) continue;
+            if (!byFile.has(r.filePath)) byFile.set(r.filePath, []);
+            byFile.get(r.filePath)!.push(r);
+          }
+
+          for (const [filePath, fileResults] of byFile.entries()) {
+            if (filePath === uri.fsPath) {
+              results.push(...fileResults);
+              continue;
+            }
+            const fileUri = vscode.Uri.file(filePath);
+            const existing = diagnostics.get(fileUri) || [];
+            const base = existing.filter(d => !isCrossMessage(d.message));
+            const newDiags = fileResults.map(r => {
+              const start = new vscode.Position(r.line, r.column);
+              const end = new vscode.Position(r.line, r.column + 1);
+              return new vscode.Diagnostic(new vscode.Range(start, end), r.message, getRuleSeverity(r.rule));
+            });
+            const combined = [...base, ...newDiags];
+            perfDiagnostics.applyDiagnostics(fileUri, combined);
+            diagnostics.set(fileUri, combined);
+          }
+        }
       }
-      
+
       const diags = results.map(r => {
         const start = new vscode.Position(r.line, r.column);
         const end = new vscode.Position(r.line, r.column + 1);
