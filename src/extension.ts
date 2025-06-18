@@ -1,7 +1,8 @@
 // src/extension.ts
 import * as vscode from 'vscode';
-import { lintHtml, LinterOptions, LintResult } from './linter';
-import { ComponentAnalyzer } from '../../ZemDomu-Core/out/component-analyzer';
+import { ProjectLinter } from '../../ZemDomu-Core/out/project-linter';
+import type { ProjectLinterOptions } from '../../ZemDomu-Core/out/project-linter';
+import type { LintResult } from '../../ZemDomu-Core/out/linter';
 import { PerformanceDiagnostics } from './performance-diagnostics';
 import { ComponentPathResolver } from '../../ZemDomu-Core/out/component-path-resolver';
 import * as path from 'path';
@@ -114,11 +115,11 @@ export function activate(context: vscode.ExtensionContext) {
   perfDiagnostics.reportBundleSize(context.extensionPath);
   let saveDisp: vscode.Disposable | undefined;
   let typeDisp: vscode.Disposable | undefined;
-  let componentAnalyzer: ComponentAnalyzer | undefined;
+  let projectLinter: ProjectLinter | undefined;
   let workspaceLinted = false;
 
   // Get linter options from configuration
-  function getLinterOptions(): LinterOptions {
+  function getLinterOptions(): ProjectLinterOptions {
     const config = vscode.workspace.getConfiguration('zemdomu');
     return {
       rules: {
@@ -153,55 +154,32 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     return msg.startsWith('Multiple <h1>') || msg.startsWith('Cross-component heading level skipped');
   }
 
-  async function lintDocument(uri: vscode.Uri, xmlMode: boolean) {
+  async function lintDocument(uri: vscode.Uri) {
     try {
       if (uri.fsPath.includes('node_modules')) {
         return;
       }
       const text = (await vscode.workspace.openTextDocument(uri)).getText();
       const options = getLinterOptions();
-      let results = lintHtml(text, xmlMode, options);
+      if (!projectLinter) {
+        projectLinter = new ProjectLinter(options);
+      }
 
+      const resultMap = await projectLinter.lintFile(uri.fsPath, text);
+      const results = resultMap.get(uri.fsPath) || [];
 
-      
-      // Also analyze component structure if this is a JSX/TSX file
-      if (xmlMode && /\.(jsx|tsx)$/.test(uri.fsPath)) {
-        if (!componentAnalyzer) {
-          componentAnalyzer = new ComponentAnalyzer(options, perfDiagnostics);
-        }
-        
-        const component = await componentAnalyzer.analyzeFile(uri);
-        if (component) {
-          componentAnalyzer.registerComponent(component, results);
-        }
-
-        if (options.crossComponentAnalysis) {
-          const crossResults = componentAnalyzer.analyzeComponentTree();
-          const byFile = new Map<string, LintResult[]>();
-          for (const r of crossResults) {
-            if (!r.filePath) continue;
-            if (!byFile.has(r.filePath)) byFile.set(r.filePath, []);
-            byFile.get(r.filePath)!.push(r);
-          }
-
-          for (const [filePath, fileResults] of byFile.entries()) {
-            if (filePath === uri.fsPath) {
-              results.push(...fileResults);
-              continue;
-            }
-            const fileUri = vscode.Uri.file(filePath);
-            const existing = diagnostics.get(fileUri) || [];
-            const base = existing.filter(d => !isCrossMessage(d.message));
-            const newDiags = fileResults.map(r => {
-              const start = new vscode.Position(r.line, r.column);
-              const end = new vscode.Position(r.line, r.column + 1);
-              return new vscode.Diagnostic(new vscode.Range(start, end), r.message, getRuleSeverity(r.rule));
-            });
-            const combined = [...base, ...newDiags];
-            perfDiagnostics.applyDiagnostics(fileUri, combined);
-            diagnostics.set(fileUri, combined);
-          }
-        }
+      for (const [filePath, fileResults] of resultMap.entries()) {
+        const fileUri = vscode.Uri.file(filePath);
+        const existing = diagnostics.get(fileUri) || [];
+        const base = filePath === uri.fsPath ? [] : existing.filter(d => !isCrossMessage(d.message));
+        const newDiags = fileResults.map(r => {
+          const start = new vscode.Position(r.line, r.column);
+          const end = new vscode.Position(r.line, r.column + 1);
+          return new vscode.Diagnostic(new vscode.Range(start, end), r.message, getRuleSeverity(r.rule));
+        });
+        const combined = [...base, ...newDiags];
+        perfDiagnostics.applyDiagnostics(fileUri, combined);
+        diagnostics.set(fileUri, combined);
       }
 
       const diags = results.map(r => {
@@ -221,9 +199,8 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       }
     }
   }
-    async function lintSingleFile(doc: vscode.TextDocument) {
-    const xmlMode = ['javascriptreact','typescriptreact'].includes(doc.languageId);
-    await lintDocument(doc.uri, xmlMode);
+  async function lintSingleFile(doc: vscode.TextDocument) {
+    await lintDocument(doc.uri);
   }
 
 
@@ -232,83 +209,36 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     if (dev) console.debug('[ZemDomu] Starting workspace lint');
     diagnostics.clear();
     
-    // Create a new component analyzer with current config
     const options = getLinterOptions();
-    componentAnalyzer = new ComponentAnalyzer(options, perfDiagnostics);
+    projectLinter = new ProjectLinter(options);
     
     // Find and analyze all JSX/TSX files first
     const jsxFiles = await vscode.workspace.findFiles('**/*.{jsx,tsx}', '**/node_modules/**');
     if (dev) console.debug(`[ZemDomu] Found ${jsxFiles.length} JSX/TSX files to analyze`);
     
-    // First pass: analyze all components
-    await Promise.all(jsxFiles.map(async uri => {
+    for (const uri of jsxFiles) {
       if (dev) console.debug(`[ZemDomu] Analyzing component: ${uri.fsPath}`);
       const text = (await vscode.workspace.openTextDocument(uri)).getText();
-      let results = lintHtml(text, true, options);
-
-      
-      const component = await componentAnalyzer!.analyzeFile(uri);
-      if (component) {
-        componentAnalyzer!.registerComponent(component, results);
-      }
-      
-      const diags = results.map(r => {
-        const start = new vscode.Position(r.line, r.column);
-        const end = new vscode.Position(r.line, r.column + 1);
-        return new vscode.Diagnostic(new vscode.Range(start, end), r.message, getRuleSeverity(r.rule));
-      });
-      perfDiagnostics.applyDiagnostics(uri, diags);
-      diagnostics.set(uri, diags);
-    }));
-    
-    // Second pass: run cross-component analysis
-    if (componentAnalyzer && options.crossComponentAnalysis) {
-      if (dev) console.debug('[ZemDomu] Running cross-component analysis');
-      const crossComponentResults = componentAnalyzer.analyzeComponentTree();
-      if (dev) console.debug(`[ZemDomu] Found ${crossComponentResults.length} cross-component issues`);
-      
-      // Group results by file
-      const resultsByFile = new Map<string, LintResult[]>();
-      for (const result of crossComponentResults) {
-        if (!result.filePath) {
-          console.warn('[ZemDomu] Cross-component result missing filePath:', result);
-          continue;
-        }
-        const fp = result.filePath;
-        if (!resultsByFile.has(fp)) {
-          resultsByFile.set(fp, []);
-        }
-        resultsByFile.get(fp)!.push(result);
-      }
-      
-      // Add diagnostics for each file
-      for (const [filePath, fileResults] of resultsByFile.entries()) {
-        if (dev) console.debug(`[ZemDomu] Adding ${fileResults.length} cross-component issues to ${filePath}`);
-        const uri = vscode.Uri.file(filePath);
-        const existingDiags = diagnostics.get(uri) || [];
-        
+      const resultMap = await projectLinter!.lintFile(uri.fsPath, text);
+      for (const [filePath, fileResults] of resultMap.entries()) {
+        const fileUri = vscode.Uri.file(filePath);
+        const existing = diagnostics.get(fileUri) || [];
+        const base = filePath === uri.fsPath ? [] : existing.filter(d => !isCrossMessage(d.message));
         const newDiags = fileResults.map(r => {
           const start = new vscode.Position(r.line, r.column);
           const end = new vscode.Position(r.line, r.column + 1);
-          return new vscode.Diagnostic(
-            new vscode.Range(start, end),
-            r.message,
-            getRuleSeverity(r.rule)
-          );
+          return new vscode.Diagnostic(new vscode.Range(start, end), r.message, getRuleSeverity(r.rule));
         });
-
-        const combined = [...existingDiags, ...newDiags];
-        perfDiagnostics.applyDiagnostics(uri, combined);
-        diagnostics.set(uri, combined);
+        const combined = [...base, ...newDiags];
+        perfDiagnostics.applyDiagnostics(fileUri, combined);
+        diagnostics.set(fileUri, combined);
       }
-    } else {
-      if (dev) console.debug('[ZemDomu] Skipping cross-component analysis (disabled in settings)');
     }
     
     // Also analyze HTML files
     const htmlFiles = await vscode.workspace.findFiles('**/*.html', '**/node_modules/**');
     if (dev) console.debug(`[ZemDomu] Found ${htmlFiles.length} HTML files to analyze`);
-    await Promise.all(htmlFiles.map(uri => lintDocument(uri, false)));
+    await Promise.all(htmlFiles.map(uri => lintDocument(uri)));
     
     if (dev) {
       const metrics = PerformanceDiagnostics.getLatestMetrics();
