@@ -1,9 +1,9 @@
 // src/extension.ts
 import * as vscode from 'vscode';
 import { lintHtml, LinterOptions, LintResult } from './linter';
-import { ComponentAnalyzer } from './component-analyzer';
+import { ComponentAnalyzer } from '../../ZemDomu-Core/out/component-analyzer';
 import { PerformanceDiagnostics } from './performance-diagnostics';
-import { ComponentPathResolver } from './component-path-resolver';
+import { ComponentPathResolver } from '../../ZemDomu-Core/out/component-path-resolver';
 import * as path from 'path';
 
 class ZemCodeActionProvider implements vscode.CodeActionProvider {
@@ -109,6 +109,8 @@ export function activate(context: vscode.ExtensionContext) {
   const devMode = vscode.workspace.getConfiguration('zemdomu').get('devMode', false);
   const perfDiagnostics = new PerformanceDiagnostics(devMode);
   ComponentPathResolver.updateDevMode(devMode);
+  const rootDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
+  ComponentPathResolver.setRootDir(rootDir);
   perfDiagnostics.reportBundleSize(context.extensionPath);
   let saveDisp: vscode.Disposable | undefined;
   let typeDisp: vscode.Disposable | undefined;
@@ -363,6 +365,8 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
         const dev = vscode.workspace.getConfiguration('zemdomu').get('devMode', false);
         perfDiagnostics.updateDevMode(dev);
         ComponentPathResolver.updateDevMode(dev);
+        const rootDir2 = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
+        ComponentPathResolver.setRootDir(rootDir2);
       }
       
       // If any rules changed, re-run linting
