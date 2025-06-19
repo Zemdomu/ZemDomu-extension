@@ -121,9 +121,9 @@ export function activate(context: vscode.ExtensionContext) {
   // Get linter options from configuration
   function getLinterOptions(): ProjectLinterOptions {
     const config = vscode.workspace.getConfiguration('zemdomu');
-    return {
+    const opts = {
       rules: {
-requireSectionHeading: config.get('rules.requireSectionHeading', true),
+        requireSectionHeading: config.get('rules.requireSectionHeading', true),
         enforceHeadingOrder: config.get('rules.enforceHeadingOrder', true),
         singleH1: config.get('rules.singleH1', true),
         requireAltText: config.get('rules.requireAltText', true),
@@ -142,6 +142,10 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       },
       crossComponentAnalysis: config.get('crossComponentAnalysis', true)
     };
+    if (config.get('devMode', false)) {
+      console.debug('[ZemDomu] Linter options:', JSON.stringify(opts));
+    }
+    return opts;
   }
 
   function getRuleSeverity(rule: string): vscode.DiagnosticSeverity {
@@ -152,13 +156,17 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
 
   async function lintDocument(uri: vscode.Uri) {
     try {
+      const dev = vscode.workspace.getConfiguration('zemdomu').get('devMode', false);
       if (uri.fsPath.includes('node_modules')) {
         return;
       }
+      if (dev) console.debug(`[ZemDomu] lintDocument start: ${uri.fsPath}`);
       const text = (await vscode.workspace.openTextDocument(uri)).getText();
       const options = getLinterOptions();
-      if (!projectLinter) {
-        projectLinter = new ProjectLinter(options);
+      const hadLinter = !!projectLinter;
+      projectLinter = new ProjectLinter(options);
+      if (dev) {
+        console.debug(`[ZemDomu] ${hadLinter ? 'Replacing' : 'Creating'} ProjectLinter`);
       }
 
       const resultMap = await projectLinter.lintFile(uri.fsPath, text);
@@ -170,8 +178,13 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
           return new vscode.Diagnostic(new vscode.Range(start, end), r.message, getRuleSeverity(r.rule));
         });
         perfDiagnostics.applyDiagnostics(fileUri, newDiags);
+        const prevCount = diagnostics.get(fileUri)?.length ?? 0;
         diagnostics.set(fileUri, newDiags);
+        if (dev) {
+          console.debug(`[ZemDomu] Diagnostics for ${fileUri.fsPath}: ${prevCount} -> ${newDiags.length}`);
+        }
       }
+      if (dev) console.debug(`[ZemDomu] lintDocument complete: ${uri.fsPath}`);
     } catch (e) {
       if (vscode.workspace.getConfiguration('zemdomu').get('devMode', false)) {
         console.debug('[ZemDomu] lintDocument parse error:', e instanceof Error ? e.message : String(e));
@@ -190,6 +203,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     
     const options = getLinterOptions();
     projectLinter = new ProjectLinter(options);
+    if (dev) console.debug('[ZemDomu] Created new ProjectLinter for workspace');
     
     // Find and analyze all JSX/TSX files first
     const jsxFiles = await vscode.workspace.findFiles('**/*.{jsx,tsx}', '**/node_modules/**');
