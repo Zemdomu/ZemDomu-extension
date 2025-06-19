@@ -150,11 +150,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     return setting === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning;
   }
 
-  function isCrossMessage(msg: string): boolean {
-    return msg.startsWith('Multiple <h1>') || msg.startsWith('Cross-component heading level skipped');
-  }
-
-  async function lintDocument(uri: vscode.Uri, preserveCross = false) {
+  async function lintDocument(uri: vscode.Uri) {
     try {
       if (uri.fsPath.includes('node_modules')) {
         return;
@@ -166,24 +162,15 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       }
 
       const resultMap = await projectLinter.lintFile(uri.fsPath, text);
-      const results = resultMap.get(uri.fsPath) || [];
-
       for (const [filePath, fileResults] of resultMap.entries()) {
         const fileUri = vscode.Uri.file(filePath);
-        const existing = diagnostics.get(fileUri) || [];
-        const base = filePath === uri.fsPath
-          ? []
-          : preserveCross
-            ? existing
-            : existing.filter(d => !isCrossMessage(d.message));
         const newDiags = fileResults.map(r => {
           const start = new vscode.Position(r.line, r.column);
           const end = new vscode.Position(r.line, r.column + 1);
           return new vscode.Diagnostic(new vscode.Range(start, end), r.message, getRuleSeverity(r.rule));
         });
-        const combined = [...base, ...newDiags];
-        perfDiagnostics.applyDiagnostics(fileUri, combined);
-        diagnostics.set(fileUri, combined);
+        perfDiagnostics.applyDiagnostics(fileUri, newDiags);
+        diagnostics.set(fileUri, newDiags);
       }
     } catch (e) {
       if (vscode.workspace.getConfiguration('zemdomu').get('devMode', false)) {
@@ -192,7 +179,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     }
   }
   async function lintSingleFile(doc: vscode.TextDocument) {
-    await lintDocument(doc.uri, true);
+    await lintDocument(doc.uri);
   }
 
 
@@ -214,16 +201,13 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       const resultMap = await projectLinter!.lintFile(uri.fsPath, text);
       for (const [filePath, fileResults] of resultMap.entries()) {
         const fileUri = vscode.Uri.file(filePath);
-        const existing = diagnostics.get(fileUri) || [];
-        const base = filePath === uri.fsPath ? [] : existing.filter(d => !isCrossMessage(d.message));
         const newDiags = fileResults.map(r => {
           const start = new vscode.Position(r.line, r.column);
           const end = new vscode.Position(r.line, r.column + 1);
           return new vscode.Diagnostic(new vscode.Range(start, end), r.message, getRuleSeverity(r.rule));
         });
-        const combined = [...base, ...newDiags];
-        perfDiagnostics.applyDiagnostics(fileUri, combined);
-        diagnostics.set(fileUri, combined);
+        perfDiagnostics.applyDiagnostics(fileUri, newDiags);
+        diagnostics.set(fileUri, newDiags);
       }
     }
     
