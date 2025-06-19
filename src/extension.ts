@@ -154,7 +154,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     return msg.startsWith('Multiple <h1>') || msg.startsWith('Cross-component heading level skipped');
   }
 
-  async function lintDocument(uri: vscode.Uri) {
+  async function lintDocument(uri: vscode.Uri, preserveCross = false) {
     try {
       if (uri.fsPath.includes('node_modules')) {
         return;
@@ -171,7 +171,11 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       for (const [filePath, fileResults] of resultMap.entries()) {
         const fileUri = vscode.Uri.file(filePath);
         const existing = diagnostics.get(fileUri) || [];
-        const base = filePath === uri.fsPath ? [] : existing.filter(d => !isCrossMessage(d.message));
+        const base = filePath === uri.fsPath
+          ? []
+          : preserveCross
+            ? existing
+            : existing.filter(d => !isCrossMessage(d.message));
         const newDiags = fileResults.map(r => {
           const start = new vscode.Position(r.line, r.column);
           const end = new vscode.Position(r.line, r.column + 1);
@@ -200,7 +204,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     }
   }
   async function lintSingleFile(doc: vscode.TextDocument) {
-    await lintDocument(doc.uri);
+    await lintDocument(doc.uri, true);
   }
 
 
