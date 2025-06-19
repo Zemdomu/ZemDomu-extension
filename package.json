@@ -316,6 +316,6 @@
     "theme": "dark"
   },
   "dependencies": {
-    "zemdomu": "^1.1.0"
+    "zemdomu": "^1.1.1"
   }
 }
