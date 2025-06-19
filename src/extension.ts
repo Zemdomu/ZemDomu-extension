@@ -185,18 +185,6 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
         perfDiagnostics.applyDiagnostics(fileUri, combined);
         diagnostics.set(fileUri, combined);
       }
-
-      const diags = results.map(r => {
-        const start = new vscode.Position(r.line, r.column);
-        const end = new vscode.Position(r.line, r.column + 1);
-        return new vscode.Diagnostic(
-          new vscode.Range(start, end),
-          r.message,
-          getRuleSeverity(r.rule)
-        );
-      });
-      perfDiagnostics.applyDiagnostics(uri, diags);
-      diagnostics.set(uri, diags);
     } catch (e) {
       if (vscode.workspace.getConfiguration('zemdomu').get('devMode', false)) {
         console.debug('[ZemDomu] lintDocument parse error:', e instanceof Error ? e.message : String(e));
