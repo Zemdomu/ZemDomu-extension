@@ -140,7 +140,8 @@ export function activate(context: vscode.ExtensionContext) {
         requireNavLinks: config.get('rules.requireNavLinks', true),
         uniqueIds: config.get('rules.uniqueIds', true)
       },
-      crossComponentAnalysis: config.get('crossComponentAnalysis', true)
+      crossComponentAnalysis: config.get('crossComponentAnalysis', true),
+      perf: perfDiagnostics
     };
     if (config.get('devMode', false)) {
       console.debug('[ZemDomu] Linter options:', JSON.stringify(opts));
