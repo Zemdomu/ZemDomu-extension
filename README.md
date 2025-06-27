@@ -88,6 +88,7 @@ Customize how ZemDomu behaves through the VS Code **Settings UI** or your `setti
 
 ```json
 "zemdomu.crossComponentAnalysis": true
+"zemdomu.crossComponentDepth": 3
 ```
 
 #### 🧪 Rule Toggle

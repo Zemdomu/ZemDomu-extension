@@ -141,6 +141,7 @@ export function activate(context: vscode.ExtensionContext) {
         uniqueIds: config.get('rules.uniqueIds', true)
       },
       crossComponentAnalysis: config.get('crossComponentAnalysis', true),
+      crossComponentDepth: config.get('crossComponentDepth', 3),
       perf: perfDiagnostics
     };
     if (config.get('devMode', false)) {
@@ -323,7 +324,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
       
       // If any rules changed, re-run linting
-      if (e.affectsConfiguration('zemdomu.rules') || e.affectsConfiguration('zemdomu.crossComponentAnalysis')) {
+      if (e.affectsConfiguration('zemdomu.rules') || e.affectsConfiguration('zemdomu.crossComponentAnalysis') || e.affectsConfiguration('zemdomu.crossComponentDepth')) {
         lintWorkspace();
       }
     }

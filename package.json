@@ -55,6 +55,11 @@
           "default": true,
           "description": "Analyze and detect semantic issues across component boundaries"
         },
+        "zemdomu.crossComponentDepth": {
+          "type": "number",
+          "default": 3,
+          "description": "Maximum depth for cross component analysis"
+        },
         "zemdomu.devMode": {
           "type": "boolean",
           "default": false,
