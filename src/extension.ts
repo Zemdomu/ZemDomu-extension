@@ -1,10 +1,10 @@
 // src/extension.ts
 import * as vscode from 'vscode';
-import { ProjectLinter } from '../../ZemDomu-Core/out/project-linter';
-import type { ProjectLinterOptions } from '../../ZemDomu-Core/out/project-linter';
-import type { LintResult } from '../../ZemDomu-Core/out/linter';
+import { ProjectLinter } from '../../ZemDomu-Core/out/src/project-linter';
+import type { ProjectLinterOptions } from '../../ZemDomu-Core/out/src/project-linter';
+import type { LintResult } from '../../ZemDomu-Core/out/src/linter';
 import { PerformanceDiagnostics } from './performance-diagnostics';
-import { ComponentPathResolver } from '../../ZemDomu-Core/out/component-path-resolver';
+import { ComponentPathResolver } from '../../ZemDomu-Core/out/src/component-path-resolver';
 import * as path from 'path';
 
 class ZemCodeActionProvider implements vscode.CodeActionProvider {
