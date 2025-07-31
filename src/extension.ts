@@ -113,6 +113,10 @@ export function activate(context: vscode.ExtensionContext) {
   const devMode = vscode.workspace.getConfiguration('zemdomu').get('devMode', false);
   const perfDiagnostics = new PerformanceDiagnostics(devMode);
   ComponentPathResolver.updateDevMode(devMode);
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (root) {
+    ComponentPathResolver.setRootDir(root);
+  }
   perfDiagnostics.reportBundleSize(context.extensionPath);
   let saveDisp: vscode.Disposable | undefined;
   let typeDisp: vscode.Disposable | undefined;
