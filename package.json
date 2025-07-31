@@ -313,5 +313,8 @@
   "galleryBanner": {
     "color": "#2D2D2D",
     "theme": "dark"
+  },
+  "dependencies": {
+    "zemdomu": "^1.2.0"
   }
 }
