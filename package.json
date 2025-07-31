@@ -7,7 +7,7 @@
     "type": "git",
     "url": "https://github.com/Zelcus/ZemDomu.git"
   },
-  "version": "1.0.0",
+  "version": "0.0.3",
   "engines": {
     "vscode": "^1.98.0"
   },
@@ -54,11 +54,6 @@
           "type": "boolean",
           "default": true,
           "description": "Analyze and detect semantic issues across component boundaries"
-        },
-        "zemdomu.crossComponentDepth": {
-          "type": "number",
-          "default": 3,
-          "description": "Maximum depth for cross component analysis"
         },
         "zemdomu.devMode": {
           "type": "boolean",
@@ -298,7 +293,6 @@
     "bundle": "esbuild out/extension.js --bundle --platform=node --minify --external:vscode --outfile=dist/extension.js",
     "package": "vsce package",
     "test": "npm run compile && npm run bundle && node tests/inline-disable.test.js && node tests/linter-labels.test.js && node tests/unique-ids.test.js && node tests/package-size.test.js",
-    "smoke-test": "node tests/smoke-test.test.js",
     "publish-all": "npm install && npm run compile && npm run bundle && npm run package"
   },
   "devDependencies": {
@@ -321,6 +315,6 @@
     "theme": "dark"
   },
   "dependencies": {
-    "zemdomu": "^1.1.5"
+    "zemdomu": "^1.2.0"
   }
 }

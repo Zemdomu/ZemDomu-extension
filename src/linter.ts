@@ -21,7 +21,6 @@ export interface LintResult {
 
 export interface LinterOptions {
   crossComponentAnalysis: boolean;
-  crossComponentDepth?: number;
   rules: {
     requireSectionHeading: boolean;
     enforceHeadingOrder: boolean;
@@ -45,7 +44,6 @@ export interface LinterOptions {
 // Default options
 const defaultOptions: LinterOptions = {
   crossComponentAnalysis: true,
-  crossComponentDepth: 3,
   rules: {
     requireSectionHeading: true,
     enforceHeadingOrder: true,

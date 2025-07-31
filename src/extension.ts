@@ -1,10 +1,9 @@
 // src/extension.ts
 import * as vscode from 'vscode';
-import { ProjectLinter } from '../../ZemDomu-Core/out/src/project-linter';
-import type { ProjectLinterOptions } from '../../ZemDomu-Core/out/src/project-linter';
-import type { LintResult } from '../../ZemDomu-Core/out/src/linter';
+import { lintHtml, LinterOptions, LintResult } from './linter';
+import { ComponentAnalyzer } from './component-analyzer';
 import { PerformanceDiagnostics } from './performance-diagnostics';
-import { ComponentPathResolver } from '../../ZemDomu-Core/out/src/component-path-resolver';
+import { ComponentPathResolver } from './component-path-resolver';
 import * as path from 'path';
 
 class ZemCodeActionProvider implements vscode.CodeActionProvider {
@@ -110,20 +109,18 @@ export function activate(context: vscode.ExtensionContext) {
   const devMode = vscode.workspace.getConfiguration('zemdomu').get('devMode', false);
   const perfDiagnostics = new PerformanceDiagnostics(devMode);
   ComponentPathResolver.updateDevMode(devMode);
-  const rootDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
-  ComponentPathResolver.setRootDir(rootDir);
   perfDiagnostics.reportBundleSize(context.extensionPath);
   let saveDisp: vscode.Disposable | undefined;
   let typeDisp: vscode.Disposable | undefined;
-  let projectLinter: ProjectLinter | undefined;
+  let componentAnalyzer: ComponentAnalyzer | undefined;
   let workspaceLinted = false;
 
   // Get linter options from configuration
-  function getLinterOptions(): ProjectLinterOptions {
+  function getLinterOptions(): LinterOptions {
     const config = vscode.workspace.getConfiguration('zemdomu');
-    const opts = {
+    return {
       rules: {
-        requireSectionHeading: config.get('rules.requireSectionHeading', true),
+requireSectionHeading: config.get('rules.requireSectionHeading', true),
         enforceHeadingOrder: config.get('rules.enforceHeadingOrder', true),
         singleH1: config.get('rules.singleH1', true),
         requireAltText: config.get('rules.requireAltText', true),
@@ -140,14 +137,8 @@ export function activate(context: vscode.ExtensionContext) {
         requireNavLinks: config.get('rules.requireNavLinks', true),
         uniqueIds: config.get('rules.uniqueIds', true)
       },
-      crossComponentAnalysis: config.get('crossComponentAnalysis', true),
-      crossComponentDepth: config.get('crossComponentDepth', 3),
-      perf: perfDiagnostics
+      crossComponentAnalysis: config.get('crossComponentAnalysis', true)
     };
-    if (config.get('devMode', false)) {
-      console.debug('[ZemDomu] Linter options:', JSON.stringify(opts));
-    }
-    return opts;
   }
 
   function getRuleSeverity(rule: string): vscode.DiagnosticSeverity {
@@ -156,45 +147,49 @@ export function activate(context: vscode.ExtensionContext) {
     return setting === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning;
   }
 
-  async function lintDocument(uri: vscode.Uri) {
+  async function lintDocument(uri: vscode.Uri, xmlMode: boolean) {
     try {
-      const dev = vscode.workspace.getConfiguration('zemdomu').get('devMode', false);
       if (uri.fsPath.includes('node_modules')) {
         return;
       }
-      if (dev) console.debug(`[ZemDomu] lintDocument start: ${uri.fsPath}`);
       const text = (await vscode.workspace.openTextDocument(uri)).getText();
       const options = getLinterOptions();
-      const hadLinter = !!projectLinter;
-      projectLinter = new ProjectLinter(options);
-      if (dev) {
-        console.debug(`[ZemDomu] ${hadLinter ? 'Replacing' : 'Creating'} ProjectLinter`);
-      }
+      let results = lintHtml(text, xmlMode, options);
 
-      const resultMap = await projectLinter.lintFile(uri.fsPath, text);
-      for (const [filePath, fileResults] of resultMap.entries()) {
-        const fileUri = vscode.Uri.file(filePath);
-        const newDiags = fileResults.map(r => {
-          const start = new vscode.Position(r.line, r.column);
-          const end = new vscode.Position(r.line, r.column + 1);
-          return new vscode.Diagnostic(new vscode.Range(start, end), r.message, getRuleSeverity(r.rule));
-        });
-        perfDiagnostics.applyDiagnostics(fileUri, newDiags);
-        const prevCount = diagnostics.get(fileUri)?.length ?? 0;
-        diagnostics.set(fileUri, newDiags);
-        if (dev) {
-          console.debug(`[ZemDomu] Diagnostics for ${fileUri.fsPath}: ${prevCount} -> ${newDiags.length}`);
+
+      
+      // Also analyze component structure if this is a JSX/TSX file
+      if (xmlMode && /\.(jsx|tsx)$/.test(uri.fsPath)) {
+        if (!componentAnalyzer) {
+          componentAnalyzer = new ComponentAnalyzer(options, perfDiagnostics);
+        }
+        
+        const component = await componentAnalyzer.analyzeFile(uri);
+        if (component) {
+          componentAnalyzer.registerComponent(component, results);
         }
       }
-      if (dev) console.debug(`[ZemDomu] lintDocument complete: ${uri.fsPath}`);
+      
+      const diags = results.map(r => {
+        const start = new vscode.Position(r.line, r.column);
+        const end = new vscode.Position(r.line, r.column + 1);
+        return new vscode.Diagnostic(
+          new vscode.Range(start, end),
+          r.message,
+          getRuleSeverity(r.rule)
+        );
+      });
+      perfDiagnostics.applyDiagnostics(uri, diags);
+      diagnostics.set(uri, diags);
     } catch (e) {
       if (vscode.workspace.getConfiguration('zemdomu').get('devMode', false)) {
         console.debug('[ZemDomu] lintDocument parse error:', e instanceof Error ? e.message : String(e));
       }
     }
   }
-  async function lintSingleFile(doc: vscode.TextDocument) {
-    await lintDocument(doc.uri);
+    async function lintSingleFile(doc: vscode.TextDocument) {
+    const xmlMode = ['javascriptreact','typescriptreact'].includes(doc.languageId);
+    await lintDocument(doc.uri, xmlMode);
   }
 
 
@@ -203,34 +198,83 @@ export function activate(context: vscode.ExtensionContext) {
     if (dev) console.debug('[ZemDomu] Starting workspace lint');
     diagnostics.clear();
     
+    // Create a new component analyzer with current config
     const options = getLinterOptions();
-    projectLinter = new ProjectLinter(options);
-    if (dev) console.debug('[ZemDomu] Created new ProjectLinter for workspace');
+    componentAnalyzer = new ComponentAnalyzer(options, perfDiagnostics);
     
     // Find and analyze all JSX/TSX files first
     const jsxFiles = await vscode.workspace.findFiles('**/*.{jsx,tsx}', '**/node_modules/**');
     if (dev) console.debug(`[ZemDomu] Found ${jsxFiles.length} JSX/TSX files to analyze`);
     
-    for (const uri of jsxFiles) {
+    // First pass: analyze all components
+    await Promise.all(jsxFiles.map(async uri => {
       if (dev) console.debug(`[ZemDomu] Analyzing component: ${uri.fsPath}`);
       const text = (await vscode.workspace.openTextDocument(uri)).getText();
-      const resultMap = await projectLinter!.lintFile(uri.fsPath, text);
-      for (const [filePath, fileResults] of resultMap.entries()) {
-        const fileUri = vscode.Uri.file(filePath);
+      let results = lintHtml(text, true, options);
+
+      
+      const component = await componentAnalyzer!.analyzeFile(uri);
+      if (component) {
+        componentAnalyzer!.registerComponent(component, results);
+      }
+      
+      const diags = results.map(r => {
+        const start = new vscode.Position(r.line, r.column);
+        const end = new vscode.Position(r.line, r.column + 1);
+        return new vscode.Diagnostic(new vscode.Range(start, end), r.message, getRuleSeverity(r.rule));
+      });
+      perfDiagnostics.applyDiagnostics(uri, diags);
+      diagnostics.set(uri, diags);
+    }));
+    
+    // Second pass: run cross-component analysis
+    if (componentAnalyzer && options.crossComponentAnalysis) {
+      if (dev) console.debug('[ZemDomu] Running cross-component analysis');
+      const crossComponentResults = componentAnalyzer.analyzeComponentTree();
+      if (dev) console.debug(`[ZemDomu] Found ${crossComponentResults.length} cross-component issues`);
+      
+      // Group results by file
+      const resultsByFile = new Map<string, LintResult[]>();
+      for (const result of crossComponentResults) {
+        if (!result.filePath) {
+          console.warn('[ZemDomu] Cross-component result missing filePath:', result);
+          continue;
+        }
+        const fp = result.filePath;
+        if (!resultsByFile.has(fp)) {
+          resultsByFile.set(fp, []);
+        }
+        resultsByFile.get(fp)!.push(result);
+      }
+      
+      // Add diagnostics for each file
+      for (const [filePath, fileResults] of resultsByFile.entries()) {
+        if (dev) console.debug(`[ZemDomu] Adding ${fileResults.length} cross-component issues to ${filePath}`);
+        const uri = vscode.Uri.file(filePath);
+        const existingDiags = diagnostics.get(uri) || [];
+        
         const newDiags = fileResults.map(r => {
           const start = new vscode.Position(r.line, r.column);
           const end = new vscode.Position(r.line, r.column + 1);
-          return new vscode.Diagnostic(new vscode.Range(start, end), r.message, getRuleSeverity(r.rule));
+          return new vscode.Diagnostic(
+            new vscode.Range(start, end),
+            r.message,
+            getRuleSeverity(r.rule)
+          );
         });
-        perfDiagnostics.applyDiagnostics(fileUri, newDiags);
-        diagnostics.set(fileUri, newDiags);
+
+        const combined = [...existingDiags, ...newDiags];
+        perfDiagnostics.applyDiagnostics(uri, combined);
+        diagnostics.set(uri, combined);
       }
+    } else {
+      if (dev) console.debug('[ZemDomu] Skipping cross-component analysis (disabled in settings)');
     }
     
     // Also analyze HTML files
     const htmlFiles = await vscode.workspace.findFiles('**/*.html', '**/node_modules/**');
     if (dev) console.debug(`[ZemDomu] Found ${htmlFiles.length} HTML files to analyze`);
-    await Promise.all(htmlFiles.map(uri => lintDocument(uri)));
+    await Promise.all(htmlFiles.map(uri => lintDocument(uri, false)));
     
     if (dev) {
       const metrics = PerformanceDiagnostics.getLatestMetrics();
@@ -319,12 +363,10 @@ export function activate(context: vscode.ExtensionContext) {
         const dev = vscode.workspace.getConfiguration('zemdomu').get('devMode', false);
         perfDiagnostics.updateDevMode(dev);
         ComponentPathResolver.updateDevMode(dev);
-        const rootDir2 = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
-        ComponentPathResolver.setRootDir(rootDir2);
       }
       
       // If any rules changed, re-run linting
-      if (e.affectsConfiguration('zemdomu.rules') || e.affectsConfiguration('zemdomu.crossComponentAnalysis') || e.affectsConfiguration('zemdomu.crossComponentDepth')) {
+      if (e.affectsConfiguration('zemdomu.rules') || e.affectsConfiguration('zemdomu.crossComponentAnalysis')) {
         lintWorkspace();
       }
     }
