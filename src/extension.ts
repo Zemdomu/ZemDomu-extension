@@ -1,9 +1,13 @@
 // src/extension.ts
 import * as vscode from 'vscode';
-import { lintHtml, LinterOptions, LintResult } from './linter';
-import { ComponentAnalyzer } from './component-analyzer';
+import {
+  lint,
+  LinterOptions,
+  LintResult,
+  ComponentAnalyzer,
+  ComponentPathResolver,
+} from 'zemdomu';
 import { PerformanceDiagnostics } from './performance-diagnostics';
-import { ComponentPathResolver } from 'zemdomu';
 import * as path from 'path';
 
 class ZemCodeActionProvider implements vscode.CodeActionProvider {
@@ -116,28 +120,39 @@ export function activate(context: vscode.ExtensionContext) {
   let workspaceLinted = false;
 
   // Get linter options from configuration
-  function getLinterOptions(): LinterOptions {
+  function getLinterOptions(): LinterOptions & { crossComponentAnalysis: boolean } {
     const config = vscode.workspace.getConfiguration('zemdomu');
+    const ruleNames = [
+      'requireSectionHeading',
+      'enforceHeadingOrder',
+      'singleH1',
+      'requireAltText',
+      'requireLabelForFormControls',
+      'enforceListNesting',
+      'requireLinkText',
+      'requireTableCaption',
+      'preventEmptyInlineTags',
+      'requireHrefOnAnchors',
+      'requireButtonText',
+      'requireIframeTitle',
+      'requireHtmlLang',
+      'requireImageInputAlt',
+      'requireNavLinks',
+      'uniqueIds',
+    ];
+    const rules: Record<string, 'error' | 'warning' | 'off'> = {};
+    for (const name of ruleNames) {
+      const enabled = config.get(`rules.${name}`, true) as boolean;
+      if (!enabled) {
+        rules[name] = 'off';
+      } else {
+        const sev = config.get(`severity.${name}`, 'warning') as string;
+        rules[name] = sev === 'error' ? 'error' : 'warning';
+      }
+    }
     return {
-      rules: {
-requireSectionHeading: config.get('rules.requireSectionHeading', true),
-        enforceHeadingOrder: config.get('rules.enforceHeadingOrder', true),
-        singleH1: config.get('rules.singleH1', true),
-        requireAltText: config.get('rules.requireAltText', true),
-        requireLabelForFormControls: config.get('rules.requireLabelForFormControls', true),
-        enforceListNesting: config.get('rules.enforceListNesting', true),
-        requireLinkText: config.get('rules.requireLinkText', true),
-        requireTableCaption: config.get('rules.requireTableCaption', true),
-        preventEmptyInlineTags: config.get('rules.preventEmptyInlineTags', true),
-        requireHrefOnAnchors: config.get('rules.requireHrefOnAnchors', true),
-        requireButtonText: config.get('rules.requireButtonText', true),
-        requireIframeTitle: config.get('rules.requireIframeTitle', true),
-        requireHtmlLang: config.get('rules.requireHtmlLang', true),
-        requireImageInputAlt: config.get('rules.requireImageInputAlt', true),
-        requireNavLinks: config.get('rules.requireNavLinks', true),
-        uniqueIds: config.get('rules.uniqueIds', true)
-      },
-      crossComponentAnalysis: config.get('crossComponentAnalysis', true)
+      rules,
+      crossComponentAnalysis: config.get('crossComponentAnalysis', true),
     };
   }
 
@@ -154,7 +169,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
       }
       const text = (await vscode.workspace.openTextDocument(uri)).getText();
       const options = getLinterOptions();
-      let results = lintHtml(text, xmlMode, options);
+      const results = lint(text, { rules: options.rules, filePath: uri.fsPath, perf: perfDiagnostics });
 
 
       
@@ -164,7 +179,7 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
           componentAnalyzer = new ComponentAnalyzer(options, perfDiagnostics);
         }
         
-        const component = await componentAnalyzer.analyzeFile(uri);
+        const component = await componentAnalyzer.analyzeFile(uri.fsPath);
         if (component) {
           componentAnalyzer.registerComponent(component, results);
         }
@@ -210,10 +225,10 @@ requireSectionHeading: config.get('rules.requireSectionHeading', true),
     await Promise.all(jsxFiles.map(async uri => {
       if (dev) console.debug(`[ZemDomu] Analyzing component: ${uri.fsPath}`);
       const text = (await vscode.workspace.openTextDocument(uri)).getText();
-      let results = lintHtml(text, true, options);
+      const results = lint(text, { rules: options.rules, filePath: uri.fsPath, perf: perfDiagnostics });
 
       
-      const component = await componentAnalyzer!.analyzeFile(uri);
+      const component = await componentAnalyzer!.analyzeFile(uri.fsPath);
       if (component) {
         componentAnalyzer!.registerComponent(component, results);
       }

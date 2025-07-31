@@ -290,7 +290,7 @@
   "scripts": {
     "compile": "tsc -p ./tsconfig.json",
     "watch": "tsc -w",
-    "bundle": "esbuild out/extension.js --bundle --platform=node --minify --external:vscode --outfile=dist/extension.js",
+    "bundle": "esbuild out/extension.js --bundle --platform=node --minify --external:vscode --external:zemdomu --outfile=dist/extension.js",
     "package": "vsce package",
     "test": "npm run compile && npm run bundle && node tests/inline-disable.test.js && node tests/linter-labels.test.js && node tests/unique-ids.test.js && node tests/package-size.test.js",
     "publish-all": "npm install && npm run compile && npm run bundle && npm run package"

@@ -1,18 +1,15 @@
 const assert = require("assert");
-let lintHtml;
+let lint;
 try {
-  ({ lintHtml } = require("zemdomu/out/linter"));
+  ({ lint } = require("zemdomu"));
 } catch (e) {
   console.error("Failed to require zemdomu:", e.message);
   throw e;
 }
 
-const options = {
-  crossComponentAnalysis: false,
-  rules: { requireAltText: true, requireMain: false },
-};
+const options = { rules: { requireAltText: 'error' } };
 const html = "<img />";
-const results = lintHtml(html, false, options);
+const results = lint(html, options);
 assert.ok(
   results.some((r) => r.rule === "requireAltText"),
   "Expected requireAltText warning"

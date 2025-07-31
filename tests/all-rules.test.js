@@ -2,8 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { lintHtml } = require('../out/linter');
-const { ProjectLinter } = require('../../ZemDomu-Core/out/index');
+const { lint, ProjectLinter } = require('zemdomu');
 
 // HTML snippet triggering all built-in rules
 const html = `
@@ -30,29 +29,7 @@ const html = `
 </html>
 `;
 
-const options = {
-  crossComponentAnalysis: false,
-  rules: {
-    requireSectionHeading: true,
-    enforceHeadingOrder: true,
-    singleH1: true,
-    requireAltText: true,
-    requireLabelForFormControls: true,
-    enforceListNesting: true,
-    requireLinkText: true,
-    requireTableCaption: true,
-    preventEmptyInlineTags: true,
-    requireHrefOnAnchors: true,
-    requireButtonText: true,
-    requireIframeTitle: true,
-    requireHtmlLang: true,
-    requireImageInputAlt: true,
-    requireNavLinks: true,
-    uniqueIds: true,
-  },
-};
-
-const results = lintHtml(html, false, options);
+const results = lint(html);
 const expected = [
   'requireSectionHeading',
   'enforceHeadingOrder',
