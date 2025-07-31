@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { lintHtml, LinterOptions, LintResult } from './linter';
 import { ComponentAnalyzer } from './component-analyzer';
 import { PerformanceDiagnostics } from './performance-diagnostics';
-import { ComponentPathResolver } from './component-path-resolver';
+import { ComponentPathResolver } from 'zemdomu';
 import * as path from 'path';
 
 class ZemCodeActionProvider implements vscode.CodeActionProvider {

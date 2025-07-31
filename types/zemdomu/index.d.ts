@@ -22,4 +22,10 @@ declare module 'zemdomu' {
   }
 
   export function lint(content: string, options?: LinterOptions): LintResult[];
+
+  export class ComponentPathResolver {
+    static setRootDir(dir: string): void;
+    static updateDevMode(dev: boolean): void;
+    resolve(importPath: string, currentPath: string): Promise<string | null>;
+  }
 }

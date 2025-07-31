@@ -5,7 +5,7 @@ import traverse from '@babel/traverse';
 import * as t from '@babel/types';
 import { LintResult, LinterOptions } from './linter';
 import { PerformanceDiagnostics } from './performance-diagnostics';
-import { ComponentPathResolver } from './component-path-resolver';
+import { ComponentPathResolver } from 'zemdomu';
 
 interface ComponentReference {
   name: string;
