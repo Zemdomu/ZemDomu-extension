@@ -7,7 +7,7 @@
     "type": "git",
     "url": "https://github.com/Zelcus/ZemDomu.git"
   },
-  "version": "0.0.3",
+  "version": "0.0.4",
   "engines": {
     "vscode": "^1.98.0"
   },
@@ -290,7 +290,7 @@
   "scripts": {
     "compile": "tsc -p ./tsconfig.json",
     "watch": "tsc -w",
-    "bundle": "esbuild out/extension.js --bundle --platform=node --minify --external:vscode --outfile=dist/extension.js",
+    "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --minify --external:vscode --outfile=dist/extension.js",
     "package": "vsce package --out dist/zemdomu.vsix",
     "test": "npm run compile && npm run bundle && node tests/inline-disable.test.js && node tests/linter-labels.test.js && node tests/unique-ids.test.js && node tests/package-size.test.js",
     "publish-all": "npm install && npm run compile && npm run bundle && npm run package"
@@ -315,6 +315,6 @@
     "theme": "dark"
   },
   "dependencies": {
-    "zemdomu": "^1.3.3"
+    "zemdomu": "^1.3.4"
   }
 }
