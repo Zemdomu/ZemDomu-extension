@@ -1,7 +1,7 @@
 const assert = require('assert');
 const { lintHtml } = require('../out/linter');
 
-const options = { crossComponentAnalysis: false, rules: { requireAltText: true, requireMain: false } };
+const options = { rules: { requireAltText: 'error' } };
 
 const html = '<!-- zemdomu-disable-next --><img />';
 const res = lintHtml(html, false, options);
