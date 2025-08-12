@@ -1,8 +1,27 @@
 import * as vscode from "vscode";
 import * as path from "path";
+import * as fs from "fs";
 import { ProjectLinter } from "zemdomu";
 import type { ProjectLinterOptions, LintResult } from "zemdomu";
 import { PerformanceDiagnostics } from "./performance-diagnostics";
+
+function findComponentName(lines: string[], line: number, column: number): string | null {
+  for (let l = line; l >= 0 && line - l < 5; l--) {
+    const text = lines[l];
+    if (!text) continue;
+    let idx = l === line ? column : text.length - 1;
+    while (idx >= 0) {
+      if (text[idx] === "<") {
+        const after = text.slice(idx + 1);
+        const m = after.match(/^([A-Z][A-Za-z0-9_]*)/);
+        if (m) return m[1];
+        break;
+      }
+      idx--;
+    }
+  }
+  return null;
+}
 
 export class LintManager implements vscode.Disposable {
   private core: ProjectLinter | null = null;
@@ -137,13 +156,22 @@ export class LintManager implements vscode.Disposable {
 
     const remapped = new Map<string, LintResult[]>();
     for (const [fp, results] of map.entries()) {
+      const lines = fs.readFileSync(fp, "utf8").split(/\r?\n/);
       for (const r of results) {
         let target = fp;
         let adjusted: LintResult = r;
-        if (r.rule === "singleH1") {
+        const isCross =
+          (r.rule === "singleH1" && r.message.includes("component")) ||
+          (r.rule === "enforceHeadingOrder" &&
+            r.message.includes("Cross-component"));
+        if (isCross) {
+          let name: string | null = null;
           const m = r.message.match(/component '([^']+)'/);
-          if (m) {
-            const name = m[1];
+          if (m) name = m[1];
+          if (!name) {
+            name = findComponentName(lines, r.line, r.column);
+          }
+          if (name) {
             const candidates = nameIndex.get(name);
             if (candidates && candidates.length === 1) {
               target = candidates[0];
