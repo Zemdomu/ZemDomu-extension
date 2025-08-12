@@ -315,6 +315,10 @@
     "theme": "dark"
   },
   "dependencies": {
+<<<<<<< HEAD
     "zemdomu": "^1.3.4"
+=======
+    "zemdomu": "^1.2.0"
+>>>>>>> 825bc698cbc2e0429067d77915b94a71c6c980d2
   }
 }
