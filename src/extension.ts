@@ -213,15 +213,51 @@ export function activate(context: vscode.ExtensionContext) {
     const map = await core.lintFiles(entries);
     const files = Array.from(map.keys());
 
-    // Clear per-file first (so removed issues disappear)
+    const nameIndex = new Map<string, string[]>();
     for (const fp of files) {
+      const base = path.basename(fp, path.extname(fp));
+      if (!nameIndex.has(base)) nameIndex.set(base, []);
+      nameIndex.get(base)!.push(fp);
+    }
+
+    const remapped = new Map<string, LintResult[]>();
+    for (const [fp, results] of map.entries()) {
+      for (const r of results) {
+        let target = fp;
+        let adjusted: LintResult = r;
+        if (r.rule === "singleH1") {
+          const m = r.message.match(/component '([^']+)'/);
+          if (m) {
+            const name = m[1];
+            const candidates = nameIndex.get(name);
+            if (candidates && candidates.length === 1) {
+              target = candidates[0];
+              adjusted = { ...r, line: 0, column: 0, filePath: target };
+            }
+          }
+        }
+        if (!remapped.has(target)) remapped.set(target, []);
+        remapped.get(target)!.push(adjusted);
+      }
+    }
+
+    const toClear = new Set<string>([...files, ...entries]);
+    for (const fp of toClear) {
       diagnostics.set(vscode.Uri.file(fp), []);
     }
 
-    // Set fresh diagnostics by file
-    for (const [fp, results] of map.entries()) {
+    for (const [fp, results] of remapped.entries()) {
+      const seen = new Set<string>();
+      const unique: LintResult[] = [];
+      for (const r of results) {
+        const key = `${r.rule}|${r.message}|${r.line}|${r.column}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push(r);
+        }
+      }
       const uri = vscode.Uri.file(fp);
-      const diags = resultsToDiagnostics(results);
+      const diags = resultsToDiagnostics(unique);
       perfDiagnostics.applyDiagnostics(uri, diags);
       diagnostics.set(uri, diags);
     }
