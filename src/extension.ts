@@ -62,6 +62,11 @@ function stableSort(results: LintResult[]): LintResult[] {
   });
 }
 
+function previewKeys(keys: string[]): string[] {
+  if (keys.length <= 6) return keys;
+  return [...keys.slice(0, 3), "…", ...keys.slice(-3)];
+}
+
 // Cheap etag for open docs: VS Code version; fallback null
 function docEtag(doc: vscode.TextDocument | undefined): string | null {
   if (!doc) return null;
@@ -186,6 +191,22 @@ export function activate(context: vscode.ExtensionContext) {
   const cfg = () => vscode.workspace.getConfiguration("zemdomu");
 
   const devMode = cfg().get("devMode", false) as boolean;
+  let verboseLogging = cfg().get("enableVerboseLogging", false) as boolean;
+
+  function verboseEvent(event: Record<string, unknown>) {
+    if (!verboseLogging) return;
+    try {
+      const payload = { ts: new Date().toISOString(), ...event };
+      log.appendLine(`[verbose] ${JSON.stringify(payload)}`);
+    } catch (err) {
+      log.appendLine(
+        `[verbose] Failed to serialize log event: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  }
+
   const perfDiagnostics = new PerformanceDiagnostics(devMode);
   perfDiagnostics.reportBundleSize(context.extensionPath);
 
@@ -317,6 +338,30 @@ export function activate(context: vscode.ExtensionContext) {
     return true; // updated
   }
 
+  function publishDiagnostics(
+    runId: number,
+    uri: vscode.Uri,
+    results: LintResult[],
+    diags: vscode.Diagnostic[],
+    etag: string | null
+  ) {
+    const updated = applyDiagnosticsCached(uri, diags, etag);
+    if (verboseLogging) {
+      const keys = results.map((r) => keyLint(r));
+      verboseEvent({
+        event: "diagnosticsPublished",
+        runId,
+        filePath: uri.fsPath,
+        uri: uri.toString(),
+        etag,
+        count: diags.length,
+        updated,
+        keysPreview: previewKeys(keys),
+      });
+    }
+    return updated;
+  }
+
   function buildRemappedResults(map: Map<string, LintResult[]>) {
     const files = Array.from(map.keys());
 
@@ -385,6 +430,14 @@ export function activate(context: vscode.ExtensionContext) {
     const runId = ++globalRunId; // snapshot run id for this pass
     const thisCore = core; // snapshot core to avoid mid-run swaps
     const t0 = Date.now();
+    verboseEvent({
+      event: "lintRunStart",
+      scope: "entries",
+      runId,
+      entryCount: entries.length,
+      startedAt: new Date(t0).toISOString(),
+      uris: verboseLogging ? entryUris.map((u) => u.toString()) : undefined,
+    });
 
     const map = await thisCore!.lintFiles(entries).catch((e) => {
       console.error("[ZemDomu] lintFiles error:", e);
@@ -392,29 +445,55 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Bail if a newer run started after this one
-    if (runId !== globalRunId) return;
+    if (runId !== globalRunId) {
+      verboseEvent({
+        event: "lintRunDiscarded",
+        scope: "entries",
+        runId,
+        stage: "postCompute",
+      });
+      return;
+    }
 
     const remapped = buildRemappedResults(map);
 
     // Only update diagnostics for files we touched this run
+    let runDiagnostics = 0;
+    const ruleCounts: Record<string, number> = {};
     for (const [fp, results] of remapped.entries()) {
       const uri = vscode.Uri.file(fp);
       const doc = vscode.workspace.textDocuments.find(
         (d) => d.uri.fsPath === fp
       );
       const diags = toDiagnostics(results, ruleSeverity);
-      applyDiagnosticsCached(uri, diags, docEtag(doc));
+      const etag = docEtag(doc);
+      publishDiagnostics(runId, uri, results, diags, etag);
+      runDiagnostics += results.length;
+      if (verboseLogging) {
+        for (const r of results) {
+          ruleCounts[r.rule] = (ruleCounts[r.rule] ?? 0) + 1;
+        }
+      }
     }
 
     const total = Array.from(diagCache.values()).reduce(
       (n, e) => n + e.diags.length,
       0
     );
+    const duration = Date.now() - t0;
     log.appendLine(
-      `Linted ${remapped.size} files (entries=${entries.length}) in ${
-        Date.now() - t0
-      }ms. Total diagnostics now ${total}.`
+      `Linted ${remapped.size} files (entries=${entries.length}) in ${duration}ms. Total diagnostics now ${total}.`
     );
+    verboseEvent({
+      event: "lintRunComplete",
+      scope: "entries",
+      runId,
+      fileCount: remapped.size,
+      diagnosticsPublished: runDiagnostics,
+      durationMs: duration,
+      finishedAt: new Date().toISOString(),
+      ruleCounts: verboseLogging ? ruleCounts : undefined,
+    });
   }
 
   async function lintWorkspaceAtomic() {
@@ -422,16 +501,50 @@ export function activate(context: vscode.ExtensionContext) {
     const exclude = "{**/node_modules/**,**/dist/**,**/out/**,**/.git/**}";
 
     const runId = ++globalRunId; // guard for the entire workspace op
+    const startedAt = Date.now();
+    verboseEvent({
+      event: "lintRunStart",
+      scope: "workspace",
+      runId,
+      startedAt: new Date(startedAt).toISOString(),
+      includePattern: include,
+      excludePattern: exclude,
+    });
 
     const files = await vscode.workspace.findFiles(include, exclude);
-    if (runId !== globalRunId) return; // lost the race
+    if (runId !== globalRunId) {
+      verboseEvent({
+        event: "lintRunDiscarded",
+        scope: "workspace",
+        runId,
+        stage: "postFileEnumeration",
+      });
+      return; // lost the race
+    }
+    verboseEvent({
+      event: "lintRunEnumerated",
+      scope: "workspace",
+      runId,
+      fileCount: files.length,
+      samples: verboseLogging
+        ? files.slice(0, 5).map((f) => f.toString())
+        : undefined,
+    });
 
     const t0 = Date.now();
     const thisCore = core ?? new ProjectLinter(buildOptions());
     const map = await thisCore
       .lintFiles(files.map((f) => f.fsPath))
       .catch(() => new Map<string, LintResult[]>());
-    if (runId !== globalRunId) return; // lost after compute
+    if (runId !== globalRunId) {
+      verboseEvent({
+        event: "lintRunDiscarded",
+        scope: "workspace",
+        runId,
+        stage: "postCompute",
+      });
+      return; // lost after compute
+    }
 
     const remapped = buildRemappedResults(map);
 
@@ -447,13 +560,22 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     // Apply new diags
+    let runDiagnostics = 0;
+    const ruleCounts: Record<string, number> = {};
     for (const [fp, results] of remapped.entries()) {
       const uri = vscode.Uri.file(fp);
       const doc = vscode.workspace.textDocuments.find(
         (d) => d.uri.fsPath === fp
       );
       const diags = toDiagnostics(results, ruleSeverity);
-      applyDiagnosticsCached(uri, diags, docEtag(doc));
+      const etag = docEtag(doc);
+      publishDiagnostics(runId, uri, results, diags, etag);
+      runDiagnostics += results.length;
+      if (verboseLogging) {
+        for (const r of results) {
+          ruleCounts[r.rule] = (ruleCounts[r.rule] ?? 0) + 1;
+        }
+      }
     }
 
     workspaceLinted = true;
@@ -466,6 +588,16 @@ export function activate(context: vscode.ExtensionContext) {
     log.appendLine(
       `Workspace lint: ${remapped.size} files in ${dt}ms. Total diagnostics now ${total}.`
     );
+    verboseEvent({
+      event: "lintRunComplete",
+      scope: "workspace",
+      runId,
+      fileCount: remapped.size,
+      diagnosticsPublished: runDiagnostics,
+      durationMs: dt,
+      finishedAt: new Date().toISOString(),
+      ruleCounts: verboseLogging ? ruleCounts : undefined,
+    });
 
     if (cfg().get("devMode", false) as boolean) {
       const metrics = PerformanceDiagnostics.getLatestMetrics();
@@ -580,6 +712,11 @@ export function activate(context: vscode.ExtensionContext) {
     if (e.affectsConfiguration("zemdomu.devMode")) {
       const now = cfg().get("devMode", false) as boolean;
       perfDiagnostics.updateDevMode(now);
+    }
+
+    if (e.affectsConfiguration("zemdomu.enableVerboseLogging")) {
+      verboseLogging = cfg().get("enableVerboseLogging", false) as boolean;
+      log.appendLine(`Verbose logging ${verboseLogging ? "enabled" : "disabled"}.`);
     }
 
     // Rebuild linter with new options and relint

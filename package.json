@@ -60,6 +60,11 @@
           "default": false,
           "description": "Enable developer diagnostics and performance output."
         },
+        "zemdomu.enableVerboseLogging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Emit structured diagnostic lifecycle logs to the ZemDomu output channel."
+        },
         "zemdomu.rules.requireSectionHeading": {
           "type": "boolean",
           "default": true,
