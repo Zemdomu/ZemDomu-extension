@@ -6,6 +6,14 @@ import type { ProjectLinterOptions, LintResult } from "zemdomu";
 
 import { PerformanceDiagnostics } from "./performance-diagnostics";
 
+/**
+ * Race-safe, queued, and atomic application of diagnostics.
+ * - Serializes workspace scans to avoid overlapping clears/applies
+ * - Uses runId guards for compute and apply
+ * - Avoids diagnostics.clear() upfront; surgically removes stale files
+ * - Defers initial full scan in onSave mode to avoid colliding with first save
+ */
+
 type FileCacheEntry = {
   etag: string | null;
   diags: vscode.Diagnostic[];
@@ -15,6 +23,28 @@ const diagCache = new Map<string, FileCacheEntry>();
 
 // Monotonic run ids to drop stale async results
 let globalRunId = 0;
+
+// Simple serialization for workspace-wide runs
+let runningWorkspace: Promise<void> | null = null;
+let workspaceQueued = false;
+
+function queueWorkspace(run: () => Promise<void>) {
+  if (runningWorkspace) {
+    workspaceQueued = true;
+    return;
+  }
+  runningWorkspace = (async () => {
+    try {
+      await run();
+    } finally {
+      runningWorkspace = null;
+      if (workspaceQueued) {
+        workspaceQueued = false;
+        queueWorkspace(run);
+      }
+    }
+  })();
+}
 
 // Create a stable signature for a LintResult
 function keyLint(r: LintResult): string {
@@ -32,7 +62,7 @@ function stableSort(results: LintResult[]): LintResult[] {
   });
 }
 
-// Cheap etag for open docs: VSCode version; fallback null
+// Cheap etag for open docs: VS Code version; fallback null
 function docEtag(doc: vscode.TextDocument | undefined): string | null {
   if (!doc) return null;
   return `${doc.version}`;
@@ -252,6 +282,20 @@ export function activate(context: vscode.ExtensionContext) {
       );
       d.source = "ZemDomu";
       d.code = r.rule;
+      if (r.related && r.related.length) {
+        d.relatedInformation = r.related.map((rel) => {
+          const relLine = Number.isFinite(rel.line) ? rel.line : 0;
+          const relCol = Number.isFinite(rel.column) ? rel.column : 0;
+          const relRange = new vscode.Range(
+            new vscode.Position(relLine, relCol),
+            new vscode.Position(relLine, Math.max(relCol + 1, relCol))
+          );
+          return new vscode.DiagnosticRelatedInformation(
+            new vscode.Location(vscode.Uri.file(rel.filePath), relRange),
+            rel.message ?? "Related location"
+          );
+        });
+      }
       return d;
     });
   }
@@ -273,29 +317,7 @@ export function activate(context: vscode.ExtensionContext) {
     return true; // updated
   }
 
-  async function lintEntries(entryUris: vscode.Uri[]) {
-    if (!core) rebuildCore();
-
-    const entries = entryUris
-      .map((u) => u.fsPath)
-      .filter(
-        (p) =>
-          !/[/\\]node_modules[/\\]/.test(p) && !/[/\\](dist|out)[/\\]/.test(p)
-      );
-
-    if (entries.length === 0 || !core) return;
-
-    const runId = ++globalRunId; // snapshot run id for this pass
-    const t0 = Date.now();
-
-    const map = await core.lintFiles(entries).catch((e) => {
-      console.error("[ZemDomu] lintFiles error:", e);
-      return new Map<string, LintResult[]>();
-    });
-
-    // Bail if a newer run started after this one
-    if (runId !== globalRunId) return;
-
+  function buildRemappedResults(map: Map<string, LintResult[]>) {
     const files = Array.from(map.keys());
 
     // Build index of component base names for singleH1 remapping
@@ -310,10 +332,10 @@ export function activate(context: vscode.ExtensionContext) {
     const remapped = new Map<string, LintResult[]>();
     for (const [fp, results] of map.entries()) {
       for (const r of results) {
-        let target = fp;
-        let adjusted: LintResult = r;
+        let target = r.filePath ?? fp;
+        let adjusted: LintResult = r.filePath ? r : { ...r, filePath: target };
 
-        if (r.rule === "singleH1") {
+        if (r.rule === "singleH1" && (!r.filePath || r.filePath === fp)) {
           const m = r.message.match(/component '([^']+)'/);
           if (m) {
             const name = m[1];
@@ -330,9 +352,9 @@ export function activate(context: vscode.ExtensionContext) {
       }
     }
 
-    // Only update diagnostics for files we touched this run
+    // Dedupe + stable order per file
+    const out = new Map<string, LintResult[]>();
     for (const [fp, results] of remapped.entries()) {
-      // Dedupe + stable order
       const seen = new Set<string>();
       const unique: LintResult[] = [];
       for (const r of stableSort(results)) {
@@ -342,31 +364,108 @@ export function activate(context: vscode.ExtensionContext) {
           unique.push(r);
         }
       }
+      out.set(fp, unique);
+    }
 
+    return out;
+  }
+
+  async function lintEntries(entryUris: vscode.Uri[]) {
+    if (!core) rebuildCore();
+
+    const entries = entryUris
+      .map((u) => u.fsPath)
+      .filter(
+        (p) =>
+          !/[\\/]node_modules[\\/]/.test(p) && !/[\\/](dist|out)[\\/]/.test(p)
+      );
+
+    if (entries.length === 0 || !core) return;
+
+    const runId = ++globalRunId; // snapshot run id for this pass
+    const thisCore = core; // snapshot core to avoid mid-run swaps
+    const t0 = Date.now();
+
+    const map = await thisCore!.lintFiles(entries).catch((e) => {
+      console.error("[ZemDomu] lintFiles error:", e);
+      return new Map<string, LintResult[]>();
+    });
+
+    // Bail if a newer run started after this one
+    if (runId !== globalRunId) return;
+
+    const remapped = buildRemappedResults(map);
+
+    // Only update diagnostics for files we touched this run
+    for (const [fp, results] of remapped.entries()) {
       const uri = vscode.Uri.file(fp);
       const doc = vscode.workspace.textDocuments.find(
         (d) => d.uri.fsPath === fp
       );
-      const diags = toDiagnostics(unique, ruleSeverity);
+      const diags = toDiagnostics(results, ruleSeverity);
       applyDiagnosticsCached(uri, diags, docEtag(doc));
     }
 
-    // Note: we intentionally do NOT clear other files here.
-    // They keep their last known diagnostics until they are re-linted.
-
+    const total = Array.from(diagCache.values()).reduce(
+      (n, e) => n + e.diags.length,
+      0
+    );
     log.appendLine(
-      `Linted ${files.length} files (entries=${entries.length}) in ${
+      `Linted ${remapped.size} files (entries=${entries.length}) in ${
         Date.now() - t0
-      }ms`
+      }ms. Total diagnostics now ${total}.`
     );
   }
-  async function lintWorkspace() {
-    diagnostics.clear();
+
+  async function lintWorkspaceAtomic() {
     const include = "**/*.{html,jsx,tsx}";
     const exclude = "{**/node_modules/**,**/dist/**,**/out/**,**/.git/**}";
+
+    const runId = ++globalRunId; // guard for the entire workspace op
+
     const files = await vscode.workspace.findFiles(include, exclude);
-    await lintEntries(files);
+    if (runId !== globalRunId) return; // lost the race
+
+    const t0 = Date.now();
+    const thisCore = core ?? new ProjectLinter(buildOptions());
+    const map = await thisCore
+      .lintFiles(files.map((f) => f.fsPath))
+      .catch(() => new Map<string, LintResult[]>());
+    if (runId !== globalRunId) return; // lost after compute
+
+    const remapped = buildRemappedResults(map);
+
+    // Apply atomically: delete stale, then set new
+    const updatedFiles = new Set(remapped.keys());
+
+    // Remove stale files we previously owned but didn't touch this run
+    for (const fp of Array.from(diagCache.keys())) {
+      if (!updatedFiles.has(fp)) {
+        diagnostics.delete(vscode.Uri.file(fp));
+        diagCache.delete(fp);
+      }
+    }
+
+    // Apply new diags
+    for (const [fp, results] of remapped.entries()) {
+      const uri = vscode.Uri.file(fp);
+      const doc = vscode.workspace.textDocuments.find(
+        (d) => d.uri.fsPath === fp
+      );
+      const diags = toDiagnostics(results, ruleSeverity);
+      applyDiagnosticsCached(uri, diags, docEtag(doc));
+    }
+
     workspaceLinted = true;
+
+    const total = Array.from(diagCache.values()).reduce(
+      (n, e) => n + e.diags.length,
+      0
+    );
+    const dt = Date.now() - t0;
+    log.appendLine(
+      `Workspace lint: ${remapped.size} files in ${dt}ms. Total diagnostics now ${total}.`
+    );
 
     if (cfg().get("devMode", false) as boolean) {
       const metrics = PerformanceDiagnostics.getLatestMetrics();
@@ -408,6 +507,10 @@ export function activate(context: vscode.ExtensionContext) {
   let typeDisp: vscode.Disposable | undefined;
   let typeTimer: NodeJS.Timeout | undefined;
 
+  function scheduleWorkspaceLint() {
+    queueWorkspace(lintWorkspaceAtomic);
+  }
+
   function updateListeners() {
     saveDisp?.dispose();
     typeDisp?.dispose();
@@ -421,15 +524,15 @@ export function activate(context: vscode.ExtensionContext) {
     if (mode === "onSave") {
       saveDisp = vscode.workspace.onDidSaveTextDocument(async (doc) => {
         if (workspaceLinted) await lintSingle(doc);
-        else await lintWorkspace();
+        else scheduleWorkspaceLint();
       });
     } else if (mode === "onType") {
       typeDisp = vscode.workspace.onDidChangeTextDocument((evt) => {
         clearTimeout(typeTimer as any);
         typeTimer = setTimeout(async () => {
           if (workspaceLinted) await lintSingle(evt.document);
-          else await lintWorkspace();
-        }, 150); //TODO: Tweak the delay
+          else scheduleWorkspaceLint();
+        }, 150); // tweakable debounce
       });
     } else {
       log.appendLine("Auto-lint disabled (manual mode).");
@@ -455,7 +558,13 @@ export function activate(context: vscode.ExtensionContext) {
             5000
           );
           progress.report({ increment: 0 });
-          await lintWorkspace();
+          scheduleWorkspaceLint();
+          // Wait for the currently running/queued scan to finish if any
+          while (runningWorkspace) {
+            try {
+              await runningWorkspace;
+            } catch {}
+          }
           clearTimeout(slow);
           progress.report({ increment: 100 });
           return "Scan complete";
@@ -476,7 +585,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Rebuild linter with new options and relint
     rebuildCore();
     updateListeners();
-    await lintWorkspace();
+    scheduleWorkspaceLint();
   });
 
   const actionProvider = vscode.languages.registerCodeActionsProvider(
@@ -497,12 +606,17 @@ export function activate(context: vscode.ExtensionContext) {
 
   updateListeners();
 
-  // First pass after a short delay
-  setTimeout(() => {
-    lintWorkspace().catch((err) =>
-      console.error("[ZemDomu] Initial lint error:", err)
-    );
-  }, 750);
+  // First pass after a short delay, but only if not onSave mode to avoid collision with first save
+  const mode = cfg().get("run", "onSave") as
+    | "onSave"
+    | "onType"
+    | "manual"
+    | "disabled";
+  if (mode !== "onSave") {
+    setTimeout(() => {
+      scheduleWorkspaceLint();
+    }, 750);
+  }
 
   log.appendLine("ZemDomu extension activated");
   console.log("ZemDomu extension is now active");

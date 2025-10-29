@@ -9,7 +9,7 @@
   },
   "version": "0.0.4",
   "engines": {
-    "vscode": "^1.98.0"
+    "vscode": "^1.105.0"
   },
   "categories": [
     "Linters"
@@ -315,6 +315,6 @@
     "theme": "dark"
   },
   "dependencies": {
-    "zemdomu": "^1.3.7"
+    "zemdomu": "^1.3.10"
   }
 }
