@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "zemdomu",
   "displayName": "ZemDomu",
   "publisher": "ZachariasErydBerlin",
@@ -48,7 +48,7 @@
             "disabled"
           ],
           "default": "onSave",
-          "description": "When to run semantic linting:\n• onSave — after each file save\n• onType — as you type\n• manual — only via the Scan Workspace command\n• disabled — never run automatically"
+          "description": "When to run semantic linting:\nΓÇó onSave ΓÇö after each file save\nΓÇó onType ΓÇö as you type\nΓÇó manual ΓÇö only via the Scan Workspace command\nΓÇó disabled ΓÇö never run automatically"
         },
         "zemdomu.crossComponentAnalysis": {
           "type": "boolean",
@@ -297,7 +297,7 @@
     "watch": "tsc -w",
     "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --minify --external:vscode --outfile=dist/extension.js",
     "package": "vsce package --out dist/zemdomu.vsix",
-    "test": "npm run compile && npm run bundle && node tests/inline-disable.test.js && node tests/linter-labels.test.js && node tests/unique-ids.test.js && node tests/package-size.test.js",
+    "test": "npm run compile && npm run bundle && node tests/inline-disable.test.js && node tests/linter-labels.test.js && node tests/unique-ids.test.js && node tests/cross-component-extension.test.js && node tests/extension-cross-component.test.js && node tests/package-size.test.js",
     "publish-all": "npm install && npm run compile && npm run bundle && npm run package"
   },
   "devDependencies": {

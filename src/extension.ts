@@ -1,10 +1,11 @@
-import * as vscode from "vscode";
+﻿import * as vscode from "vscode";
 import * as path from "path";
 
 import { ProjectLinter } from "zemdomu";
 import type { ProjectLinterOptions, LintResult } from "zemdomu";
 
 import { PerformanceDiagnostics } from "./performance-diagnostics";
+import { IssueTracker } from "./issue-tracker";
 
 /**
  * Race-safe, queued, and atomic application of diagnostics.
@@ -64,7 +65,7 @@ function stableSort(results: LintResult[]): LintResult[] {
 
 function previewKeys(keys: string[]): string[] {
   if (keys.length <= 6) return keys;
-  return [...keys.slice(0, 3), "…", ...keys.slice(-3)];
+  return [...keys.slice(0, 3), "ΓÇª", ...keys.slice(-3)];
 }
 
 // Cheap etag for open docs: VS Code version; fallback null
@@ -188,6 +189,11 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
 export function activate(context: vscode.ExtensionContext) {
   const diagnostics = vscode.languages.createDiagnosticCollection("zemdomu");
   const log = vscode.window.createOutputChannel("ZemDomu");
+  const statusBarItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    100
+  );
+  const issueTracker = new IssueTracker(statusBarItem);
   const cfg = () => vscode.workspace.getConfiguration("zemdomu");
 
   const devMode = cfg().get("devMode", false) as boolean;
@@ -335,6 +341,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
     diagnostics.set(uri, diags);
     diagCache.set(fp, { etag, diags });
+    issueTracker.updateFile(uri, diags);
     return true; // updated
   }
 
@@ -497,132 +504,139 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   async function lintWorkspaceAtomic() {
-    const include = "**/*.{html,jsx,tsx}";
-    const exclude = "{**/node_modules/**,**/dist/**,**/out/**,**/.git/**}";
+    issueTracker.beginScan("Scanning workspace for ZemDomu issues...");
+    try {
+      const include = "**/*.{html,jsx,tsx}";
+      const exclude = "{**/node_modules/**,**/dist/**,**/out/**,**/.git/**}";
 
-    const runId = ++globalRunId; // guard for the entire workspace op
-    const startedAt = Date.now();
-    verboseEvent({
-      event: "lintRunStart",
-      scope: "workspace",
-      runId,
-      startedAt: new Date(startedAt).toISOString(),
-      includePattern: include,
-      excludePattern: exclude,
-    });
-
-    const files = await vscode.workspace.findFiles(include, exclude);
-    if (runId !== globalRunId) {
+      const runId = ++globalRunId; // guard for the entire workspace op
+      const startedAt = Date.now();
       verboseEvent({
-        event: "lintRunDiscarded",
+        event: "lintRunStart",
         scope: "workspace",
         runId,
-        stage: "postFileEnumeration",
+        startedAt: new Date(startedAt).toISOString(),
+        includePattern: include,
+        excludePattern: exclude,
       });
-      return; // lost the race
-    }
-    verboseEvent({
-      event: "lintRunEnumerated",
-      scope: "workspace",
-      runId,
-      fileCount: files.length,
-      samples: verboseLogging
-        ? files.slice(0, 5).map((f) => f.toString())
-        : undefined,
-    });
 
-    const t0 = Date.now();
-    const thisCore = core ?? new ProjectLinter(buildOptions());
-    const map = await thisCore
-      .lintFiles(files.map((f) => f.fsPath))
-      .catch(() => new Map<string, LintResult[]>());
-    if (runId !== globalRunId) {
+      const files = await vscode.workspace.findFiles(include, exclude);
+      if (runId !== globalRunId) {
+        verboseEvent({
+          event: "lintRunDiscarded",
+          scope: "workspace",
+          runId,
+          stage: "postFileEnumeration",
+        });
+        return; // lost the race
+      }
       verboseEvent({
-        event: "lintRunDiscarded",
+        event: "lintRunEnumerated",
         scope: "workspace",
         runId,
-        stage: "postCompute",
+        fileCount: files.length,
+        samples: verboseLogging
+          ? files.slice(0, 5).map((f) => f.toString())
+          : undefined,
       });
-      return; // lost after compute
-    }
 
-    const remapped = buildRemappedResults(map);
-
-    // Apply atomically: delete stale, then set new
-    const updatedFiles = new Set(remapped.keys());
-
-    // Remove stale files we previously owned but didn't touch this run
-    for (const fp of Array.from(diagCache.keys())) {
-      if (!updatedFiles.has(fp)) {
-        diagnostics.delete(vscode.Uri.file(fp));
-        diagCache.delete(fp);
+      const t0 = Date.now();
+      const thisCore = core ?? new ProjectLinter(buildOptions());
+      const map = await thisCore
+        .lintFiles(files.map((f) => f.fsPath))
+        .catch(() => new Map<string, LintResult[]>());
+      if (runId !== globalRunId) {
+        verboseEvent({
+          event: "lintRunDiscarded",
+          scope: "workspace",
+          runId,
+          stage: "postCompute",
+        });
+        return; // lost after compute
       }
-    }
 
-    // Apply new diags
-    let runDiagnostics = 0;
-    const ruleCounts: Record<string, number> = {};
-    for (const [fp, results] of remapped.entries()) {
-      const uri = vscode.Uri.file(fp);
-      const doc = vscode.workspace.textDocuments.find(
-        (d) => d.uri.fsPath === fp
-      );
-      const diags = toDiagnostics(results, ruleSeverity);
-      const etag = docEtag(doc);
-      publishDiagnostics(runId, uri, results, diags, etag);
-      runDiagnostics += results.length;
-      if (verboseLogging) {
-        for (const r of results) {
-          ruleCounts[r.rule] = (ruleCounts[r.rule] ?? 0) + 1;
+      const remapped = buildRemappedResults(map);
+
+      // Apply atomically: delete stale, then set new
+      const updatedFiles = new Set(remapped.keys());
+
+      // Remove stale files we previously owned but didn't touch this run
+      for (const fp of Array.from(diagCache.keys())) {
+        if (!updatedFiles.has(fp)) {
+          const uri = vscode.Uri.file(fp);
+          diagnostics.delete(uri);
+          diagCache.delete(fp);
+          issueTracker.removeFile(uri);
         }
       }
-    }
 
-    workspaceLinted = true;
-
-    const total = Array.from(diagCache.values()).reduce(
-      (n, e) => n + e.diags.length,
-      0
-    );
-    const dt = Date.now() - t0;
-    log.appendLine(
-      `Workspace lint: ${remapped.size} files in ${dt}ms. Total diagnostics now ${total}.`
-    );
-    verboseEvent({
-      event: "lintRunComplete",
-      scope: "workspace",
-      runId,
-      fileCount: remapped.size,
-      diagnosticsPublished: runDiagnostics,
-      durationMs: dt,
-      finishedAt: new Date().toISOString(),
-      ruleCounts: verboseLogging ? ruleCounts : undefined,
-    });
-
-    if (cfg().get("devMode", false) as boolean) {
-      const metrics = PerformanceDiagnostics.getLatestMetrics();
-      let slowFile = "";
-      let slowTime = 0;
-      let slowPhase = "";
-      let slowPhaseTime = 0;
-      for (const [file, times] of metrics.entries()) {
-        if ((times.total ?? 0) > slowTime) {
-          slowTime = times.total ?? 0;
-          slowFile = file;
-        }
-        for (const [ph, t] of Object.entries(times)) {
-          if (ph !== "total" && t > slowPhaseTime) {
-            slowPhaseTime = t;
-            slowPhase = ph;
+      // Apply new diags
+      let runDiagnostics = 0;
+      const ruleCounts: Record<string, number> = {};
+      for (const [fp, results] of remapped.entries()) {
+        const uri = vscode.Uri.file(fp);
+        const doc = vscode.workspace.textDocuments.find(
+          (d) => d.uri.fsPath === fp
+        );
+        const diags = toDiagnostics(results, ruleSeverity);
+        const etag = docEtag(doc);
+        publishDiagnostics(runId, uri, results, diags, etag);
+        runDiagnostics += results.length;
+        if (verboseLogging) {
+          for (const r of results) {
+            ruleCounts[r.rule] = (ruleCounts[r.rule] ?? 0) + 1;
           }
         }
       }
-      perfDiagnostics.log(
-        `Slowest file: ${path.basename(slowFile)} ${slowTime.toFixed(2)}ms`
+
+      workspaceLinted = true;
+
+      const total = Array.from(diagCache.values()).reduce(
+        (n, e) => n + e.diags.length,
+        0
       );
-      perfDiagnostics.log(
-        `Slowest phase: ${slowPhase} ${slowPhaseTime.toFixed(2)}ms`
+      const dt = Date.now() - t0;
+      log.appendLine(
+        `Workspace lint: ${remapped.size} files in ${dt}ms. Total diagnostics now ${total}.`
       );
+      verboseEvent({
+        event: "lintRunComplete",
+        scope: "workspace",
+        runId,
+        fileCount: remapped.size,
+        diagnosticsPublished: runDiagnostics,
+        durationMs: dt,
+        finishedAt: new Date().toISOString(),
+        ruleCounts: verboseLogging ? ruleCounts : undefined,
+      });
+
+      if (cfg().get("devMode", false) as boolean) {
+        const metrics = PerformanceDiagnostics.getLatestMetrics();
+        let slowFile = "";
+        let slowTime = 0;
+        let slowPhase = "";
+        let slowPhaseTime = 0;
+        for (const [file, times] of metrics.entries()) {
+          if ((times.total ?? 0) > slowTime) {
+            slowTime = times.total ?? 0;
+            slowFile = file;
+          }
+          for (const [ph, t] of Object.entries(times)) {
+            if (ph !== "total" && t > slowPhaseTime) {
+              slowPhaseTime = t;
+              slowPhase = ph;
+            }
+          }
+        }
+        perfDiagnostics.log(
+          `Slowest file: ${path.basename(slowFile)} ${slowTime.toFixed(2)}ms`
+        );
+        perfDiagnostics.log(
+          `Slowest phase: ${slowPhase} ${slowPhaseTime.toFixed(2)}ms`
+        );
+      }
+    } finally {
+      issueTracker.finishScan();
     }
   }
 
@@ -678,14 +692,14 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: "ZemDomu: Scanning…",
+          title: "ZemDomu: ScanningΓÇª",
           cancellable: false,
         },
         async (progress) => {
           const slow = setTimeout(
             () =>
               vscode.window.showInformationMessage(
-                "ZemDomu is scanning the workspace…"
+                "ZemDomu is scanning the workspaceΓÇª"
               ),
             5000
           );
@@ -736,6 +750,7 @@ export function activate(context: vscode.ExtensionContext) {
     lintCommand,
     configWatcher,
     actionProvider,
+    issueTracker,
     { dispose: () => saveDisp?.dispose() },
     { dispose: () => typeDisp?.dispose() },
     log
