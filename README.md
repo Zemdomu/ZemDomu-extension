@@ -129,8 +129,8 @@ Development happens in a private monorepo; this repository is the public mirror
 for issues and updates.
 
 - Extension page: https://marketplace.visualstudio.com/items?itemName=ZachariasErydBerlin.zemdomu
-- Public mirror: https://github.com/Zemdomu/ZemDomu-Extension
-- Issues and suggestions: https://github.com/Zemdomu/ZemDomu-Extension/issues
+- Public mirror: https://github.com/Zemdomu/ZemDomu-extension
+- Issues and suggestions: https://github.com/Zemdomu/ZemDomu-extension/issues
 
 ---
 
