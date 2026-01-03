@@ -125,9 +125,12 @@ Supported rules:
 
 ## Links
 
+Development happens in a private monorepo; this repository is the public mirror
+for issues and updates.
+
 - Extension page: https://marketplace.visualstudio.com/items?itemName=ZachariasErydBerlin.zemdomu
-- Issues and suggestions: https://github.com/Zelcus/ZemDomu/issues
-- Contribution guide: https://github.com/Zelcus/ZemDomu#contributing
+- Public mirror: https://github.com/Zemdomu/ZemDomu-Extension
+- Issues and suggestions: https://github.com/Zemdomu/ZemDomu-Extension/issues
 
 ---
 

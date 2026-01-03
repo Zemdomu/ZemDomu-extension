@@ -5,7 +5,10 @@
   "description": "A semantic linter for HTML and JSX/TSX with cross-component analysis",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Zelcus/ZemDomu.git"
+    "url": "https://github.com/Zemdomu/ZemDomu-Extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Zemdomu/ZemDomu-Extension/issues"
   },
   "version": "0.0.7",
   "engines": {
