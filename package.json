@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "zemdomu",
   "displayName": "ZemDomu",
   "publisher": "ZachariasErydBerlin",
@@ -7,7 +7,7 @@
     "type": "git",
     "url": "https://github.com/Zelcus/ZemDomu.git"
   },
-  "version": "0.0.4",
+  "version": "0.0.6",
   "engines": {
     "vscode": "^1.105.0"
   },
@@ -17,8 +17,7 @@
   "activationEvents": [
     "onLanguage:html",
     "onLanguage:javascriptreact",
-    "onLanguage:typescriptreact",
-    "onCommand:zemdomu.lintWorkspace"
+    "onLanguage:typescriptreact"
   ],
   "main": "./dist/extension.js",
   "contributes": {

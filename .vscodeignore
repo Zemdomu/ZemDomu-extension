@@ -25,6 +25,7 @@ tsconfig.json
 
 # Documentation and tests
 docs/
+!docs/USER_GUIDE.md
 tests/
 
 # Type declaration files

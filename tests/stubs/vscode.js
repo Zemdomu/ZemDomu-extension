@@ -232,6 +232,21 @@ function ensureUri(value) {
   return value instanceof Uri ? value : Uri.file(value);
 }
 
+function parseFindFileExts(pattern) {
+  if (typeof pattern !== 'string') return new Set();
+  const braceMatch = pattern.match(/\{([^}]+)\}/);
+  if (braceMatch) {
+    return new Set(
+      braceMatch[1]
+        .split(',')
+        .map(ext => ext.trim().replace(/^\./, ''))
+        .filter(Boolean)
+    );
+  }
+  const extMatch = pattern.match(/\.([a-z0-9]+)$/i);
+  return extMatch ? new Set([extMatch[1]]) : new Set();
+}
+
 function guessLanguageId(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   if (ext === '.jsx') return 'javascriptreact';
@@ -281,7 +296,30 @@ const workspace = {
 
   findFiles(pattern) {
     const entries = findFileRegistry.get(pattern);
-    return Promise.resolve(entries ? entries.map(ensureUri) : []);
+    if (entries) return Promise.resolve(entries.map(ensureUri));
+
+    const requestedExts = parseFindFileExts(pattern);
+    if (requestedExts.size === 0) return Promise.resolve([]);
+
+    const merged = new Map();
+    for (const [key, values] of findFileRegistry.entries()) {
+      const keyExts = parseFindFileExts(key);
+      if (keyExts.size === 0) continue;
+      let isSubset = true;
+      for (const ext of keyExts) {
+        if (!requestedExts.has(ext)) {
+          isSubset = false;
+          break;
+        }
+      }
+      if (!isSubset) continue;
+      for (const value of values) {
+        const uri = ensureUri(value);
+        merged.set(uri.fsPath, uri);
+      }
+    }
+
+    return Promise.resolve(Array.from(merged.values()));
   },
 
   __setFindFiles(pattern, filePaths) {

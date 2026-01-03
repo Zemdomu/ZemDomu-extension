@@ -17,89 +17,99 @@
 
 ---
 
-## 🧠 What is ZemDomu?
+## What is ZemDomu?
 
-**ZemDomu** is a VS Code extension that **lints for semantic HTML issues**, going beyond syntax to catch deeper structural and accessibility problems in your HTML, JSX, and TSX files.
-
-It runs automatically on save and integrates with the **Problems tab** and inline diagnostics to help you build better markup, instantly.
-
----
-
-## ✨ Features
-
-* 🔍 Warns when `<li>` is outside a `<ul>` or `<ol>`
-* 🧫 Enforces correct heading levels (`<h1>` → `<h2>` → ...)
-* 🖼 Flags missing `alt` on `<img>`
-* 🧠 Requires accessible text on `<button>`
-* 🔒 Checks that `<iframe>` has a `title`
-* 🌍 Requires `lang` attribute on `<html>`
-* 📸 Validates `alt` on `<input type="image">`
-* 🧾 Detects form controls without `aria-label` or `<label for="">`
-* 🆔 Warns on duplicate `id` attributes
-* 💬 Highlights empty semantic tags (`<strong>`, `<em>`, etc.)
-* 🔗 Flags `<a>` tags missing `href` or visible text
-* 🧹 Ensures every `<section>` has a heading
-* 🧽 Warns if `<nav>` contains no links
-* 🧠 Cross-component JSX analysis
-* ⚡ Caching for fast re-linting
-* 🛠 Quick fixes for common issues
+ZemDomu is a VS Code extension that lints HTML, JSX, and TSX for semantic and
+accessibility issues. It integrates with the Problems panel and inline
+diagnostics so you can catch structural problems early.
 
 ---
 
-## 🌟 Why Use ZemDomu?
+## Features
 
-Most linters focus on **syntax** or **style**. ZemDomu catches **semantic violations** that impact:
-
-* **Accessibility** – screen reader & assistive tech compatibility
-* **SEO** – semantic structure and crawlability
-* **UX** – cleaner, more consistent user experiences
-
----
-
-## 🚀 Getting Started
-
-### 🔧 Installation
-
-* Install via [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=ZachariasErydBerlin.zemdomu)
-* Or search for `ZemDomu` inside the VS Code Extensions panel
-
-### ⚙️ Usage
-
-1. Open any `.html`, `.jsx`, or `.tsx` file
-2. Make changes and save
-3. Issues show up instantly in:
-
-   * **Problems tab** (`Ctrl+Shift+M`)
-   * Red squiggly underlines in the editor
+- Lints HTML, JSX, and TSX with semantic rules.
+- Runs on save, on type, or manually.
+- Workspace scan command and status bar issue count.
+- Cross-component JSX analysis.
+- Quick fixes for common missing attributes.
+- Optional verbose logging and performance diagnostics.
 
 ---
 
-## 🛠 Configuration
+## Getting Started
 
-Customize how ZemDomu behaves through the VS Code **Settings UI** or your `settings.json`.
+1. Install from the VS Code Marketplace or search for "ZemDomu" in Extensions.
+2. Open an `.html`, `.jsx`, or `.tsx` file.
+3. Save the file or run `ZemDomu: Scan Workspace for Semantic Issues`
+   (`Ctrl+Alt+Z` / `Cmd+Alt+Z`).
+4. Review findings in the Problems panel and editor.
 
-#### 🔀 Lint Trigger
+---
+
+## Configuration
+
+Settings are under the `zemdomu` namespace.
+
+### Run mode
 
 ```json
-"zemdomu.run": "onSave" // other options: "onType", "manual", "disabled"
+"zemdomu.run": "onSave"
 ```
 
-#### 🧹 Cross-Component Analysis
+Options: `onSave`, `onType`, `manual`, `disabled`.
+
+### Cross-component analysis
 
 ```json
 "zemdomu.crossComponentAnalysis": true
 ```
 
-#### 🧪 Rule Toggle
-
-Enable/disable specific rules:
+### Logging and diagnostics
 
 ```json
-"zemdomu.rules.enforceHeadingOrder": true
-"zemdomu.rules.requireAltText": false
+"zemdomu.devMode": false,
+"zemdomu.enableVerboseLogging": false
 ```
 
-#### 🧃 Inline Disabling (HTML/JSX)
+`devMode` enables the "ZemDomu Perf" output channel. `enableVerboseLogging`
+adds structured lifecycle logs to the "ZemDomu" channel.
+
+### Rules
+
+Enable or disable individual rules:
+
+```json
+"zemdomu.rules.requireAltText": true,
+"zemdomu.rules.enforceHeadingOrder": true
+```
+
+Override severity per rule:
+
+```json
+"zemdomu.severity.requireAltText": "warning",
+"zemdomu.severity.enforceHeadingOrder": "error"
+```
+
+Supported rules:
+
+- requireSectionHeading
+- enforceHeadingOrder
+- singleH1
+- requireAltText
+- requireLabelForFormControls
+- enforceListNesting
+- requireLinkText
+- requireTableCaption
+- preventEmptyInlineTags
+- requireHrefOnAnchors
+- requireButtonText
+- requireIframeTitle
+- requireHtmlLang
+- requireImageInputAlt
+- requireNavLinks
+- uniqueIds
+
+### Inline disabling
 
 ```html
 <!-- zemdomu-disable-next -->
@@ -113,14 +123,14 @@ Enable/disable specific rules:
 
 ---
 
-## 📌 Related
+## Links
 
-* [Extension Page](https://marketplace.visualstudio.com/items?itemName=ZachariasErydBerlin.zemdomu)
-* [Issues & Suggestions](https://github.com/Zelcus/ZemDomu/issues)
-* [Contribution Guide](https://github.com/Zelcus/ZemDomu#contributing)
+- Extension page: https://marketplace.visualstudio.com/items?itemName=ZachariasErydBerlin.zemdomu
+- Issues and suggestions: https://github.com/Zelcus/ZemDomu/issues
+- Contribution guide: https://github.com/Zelcus/ZemDomu#contributing
 
 ---
 
-## 📄 License
+## License
 
-MIT © 2025 [Zacharias Eryd Berlin](https://github.com/Zelcus)
+MIT (c) 2025 Zacharias Eryd Berlin

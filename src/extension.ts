@@ -506,6 +506,8 @@ export function activate(context: vscode.ExtensionContext) {
   async function lintWorkspaceAtomic() {
     issueTracker.beginScan("Scanning workspace for ZemDomu issues...");
     try {
+      core?.clear();
+
       const include = "**/*.{html,jsx,tsx}";
       const exclude = "{**/node_modules/**,**/dist/**,**/out/**,**/.git/**}";
 
@@ -689,7 +691,7 @@ export function activate(context: vscode.ExtensionContext) {
   const lintCommand = vscode.commands.registerCommand(
     "zemdomu.lintWorkspace",
     () => {
-      vscode.window.withProgress(
+      return vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
           title: "ZemDomu: ScanningΓÇª",
