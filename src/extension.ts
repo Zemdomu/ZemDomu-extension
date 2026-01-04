@@ -508,7 +508,7 @@ export function activate(context: vscode.ExtensionContext) {
     try {
       core?.clear();
 
-      const include = "**/*.{html,jsx,tsx}";
+      const include = "**/*.{html,jsx,tsx,vue}";
       const exclude = "{**/node_modules/**,**/dist/**,**/out/**,**/.git/**}";
 
       const runId = ++globalRunId; // guard for the entire workspace op
@@ -643,7 +643,7 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   async function lintSingle(doc: vscode.TextDocument) {
-    const isSupported = ["html", "javascriptreact", "typescriptreact"].includes(
+    const isSupported = ["html", "javascriptreact", "typescriptreact", "vue"].includes(
       doc.languageId
     );
     if (!isSupported) return;
@@ -742,7 +742,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const actionProvider = vscode.languages.registerCodeActionsProvider(
-    ["html", "javascriptreact", "typescriptreact"],
+    ["html", "javascriptreact", "typescriptreact", "vue"],
     new ZemCodeActionProvider(),
     { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
   );

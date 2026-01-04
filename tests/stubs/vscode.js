@@ -252,6 +252,7 @@ function guessLanguageId(filePath) {
   if (ext === '.jsx') return 'javascriptreact';
   if (ext === '.tsx') return 'typescriptreact';
   if (ext === '.html' || ext === '.htm') return 'html';
+  if (ext === '.vue') return 'vue';
   return 'plaintext';
 }
 

@@ -19,18 +19,18 @@
 
 ## What is ZemDomu?
 
-ZemDomu is a VS Code extension that lints HTML, JSX, and TSX for semantic and
-accessibility issues. It integrates with the Problems panel and inline
-diagnostics so you can catch structural problems early.
+ZemDomu is a VS Code extension that lints HTML, JSX, TSX, and Vue templates for
+semantic and accessibility issues. It integrates with the Problems panel and
+inline diagnostics so you can catch structural problems early.
 
 ---
 
 ## Features
 
-- Lints HTML, JSX, and TSX with semantic rules.
+- Lints HTML, JSX, TSX, and Vue templates with semantic rules.
 - Runs on save, on type, or manually.
 - Workspace scan command and status bar issue count.
-- Cross-component JSX analysis.
+- Cross-component JSX/Vue analysis.
 - Quick fixes for common missing attributes.
 - Optional verbose logging and performance diagnostics.
 
@@ -39,7 +39,7 @@ diagnostics so you can catch structural problems early.
 ## Getting Started
 
 1. Install from the VS Code Marketplace or search for "ZemDomu" in Extensions.
-2. Open an `.html`, `.jsx`, or `.tsx` file.
+2. Open an `.html`, `.jsx`, `.tsx`, or `.vue` file.
 3. Save the file or run `ZemDomu: Scan Workspace for Semantic Issues`
    (`Ctrl+Alt+Z` / `Cmd+Alt+Z`).
 4. Review findings in the Problems panel and editor.
