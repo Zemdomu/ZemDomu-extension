@@ -20,6 +20,8 @@ type FileCacheEntry = {
   diags: vscode.Diagnostic[];
 };
 
+type LintResultWithCode = LintResult & { code?: string };
+
 const diagCache = new Map<string, FileCacheEntry>();
 
 // Monotonic run ids to drop stale async results
@@ -298,6 +300,7 @@ export function activate(context: vscode.ExtensionContext) {
     ruleSeverity: (r: string) => vscode.DiagnosticSeverity
   ): vscode.Diagnostic[] {
     return results.map((r) => {
+      const rWithCode = r as LintResultWithCode;
       const line = Number.isFinite(r.line) ? r.line : 0;
       const col = Number.isFinite(r.column) ? r.column : 0;
       const start = new vscode.Position(line, col);
@@ -308,7 +311,7 @@ export function activate(context: vscode.ExtensionContext) {
         ruleSeverity(r.rule)
       );
       d.source = "ZemDomu";
-      d.code = r.rule;
+      d.code = rWithCode.code ?? r.rule;
       if (r.related && r.related.length) {
         d.relatedInformation = r.related.map((rel) => {
           const relLine = Number.isFinite(rel.line) ? rel.line : 0;
