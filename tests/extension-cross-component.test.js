@@ -14,12 +14,21 @@ process.env.ZEMDOMU_SKIP_STARTUP_SCAN = '1';
 
 const vscode = require('vscode');
 
+const RULE_CODES = {
+  singleH1: 'ZMD003',
+};
+
 function diagnosticCode(diag) {
   if (!diag) return undefined;
   if (diag.code && typeof diag.code === 'object') {
     return diag.code.value;
   }
   return diag.code;
+}
+
+function matchesRule(diag, ruleName) {
+  const code = diagnosticCode(diag);
+  return code === ruleName || code === RULE_CODES[ruleName];
 }
 
 function writeButton(filePath, headingTag) {
@@ -66,7 +75,7 @@ function writeButton(filePath, headingTag) {
 
     let pageDiagnostics = collection.get(vscode.Uri.file(pagePath)) ?? [];
     assert.ok(
-      pageDiagnostics.some(diag => diagnosticCode(diag) === 'singleH1'),
+      pageDiagnostics.some(diag => matchesRule(diag, 'singleH1')),
       'Expected cross-component singleH1 diagnostic for Page.jsx'
     );
 
@@ -76,7 +85,7 @@ function writeButton(filePath, headingTag) {
 
     pageDiagnostics = collection.get(vscode.Uri.file(pagePath)) ?? [];
     const hasSingleH1 = pageDiagnostics.some(
-      diag => diagnosticCode(diag) === 'singleH1'
+      diag => matchesRule(diag, 'singleH1')
     );
     assert.strictEqual(
       hasSingleH1,

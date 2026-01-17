@@ -12,12 +12,21 @@ Module._initPaths();
 
 const vscode = require('vscode');
 
+const RULE_CODES = {
+  requireAltText: 'ZMD004',
+};
+
 function diagnosticCode(diag) {
   if (!diag) return undefined;
   if (diag.code && typeof diag.code === 'object') {
     return diag.code.value;
   }
   return diag.code;
+}
+
+function matchesRule(diag, ruleName) {
+  const code = diagnosticCode(diag);
+  return code === ruleName || code === RULE_CODES[ruleName];
 }
 
 (async () => {
@@ -53,7 +62,7 @@ function diagnosticCode(diag) {
 
     const diagnostics = collection.get(vscode.Uri.file(appPath)) ?? [];
     assert.ok(
-      diagnostics.some((diag) => diagnosticCode(diag) === 'requireAltText'),
+      diagnostics.some((diag) => matchesRule(diag, 'requireAltText')),
       'Expected requireAltText diagnostic for Vue template'
     );
 
