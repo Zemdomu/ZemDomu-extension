@@ -12,6 +12,14 @@ Module._initPaths();
 
 const vscode = require('vscode');
 
+function diagnosticCode(diag) {
+  if (!diag) return undefined;
+  if (diag.code && typeof diag.code === 'object') {
+    return diag.code.value;
+  }
+  return diag.code;
+}
+
 (async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zemdomu-vue-'));
   const appPath = path.join(tmpDir, 'App.vue');
@@ -45,7 +53,7 @@ const vscode = require('vscode');
 
     const diagnostics = collection.get(vscode.Uri.file(appPath)) ?? [];
     assert.ok(
-      diagnostics.some((diag) => diag.code === 'requireAltText'),
+      diagnostics.some((diag) => diagnosticCode(diag) === 'requireAltText'),
       'Expected requireAltText diagnostic for Vue template'
     );
 

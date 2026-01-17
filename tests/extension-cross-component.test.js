@@ -14,6 +14,14 @@ process.env.ZEMDOMU_SKIP_STARTUP_SCAN = '1';
 
 const vscode = require('vscode');
 
+function diagnosticCode(diag) {
+  if (!diag) return undefined;
+  if (diag.code && typeof diag.code === 'object') {
+    return diag.code.value;
+  }
+  return diag.code;
+}
+
 function writeButton(filePath, headingTag) {
   fs.writeFileSync(
     filePath,
@@ -58,7 +66,7 @@ function writeButton(filePath, headingTag) {
 
     let pageDiagnostics = collection.get(vscode.Uri.file(pagePath)) ?? [];
     assert.ok(
-      pageDiagnostics.some(diag => diag.code === 'singleH1'),
+      pageDiagnostics.some(diag => diagnosticCode(diag) === 'singleH1'),
       'Expected cross-component singleH1 diagnostic for Page.jsx'
     );
 
@@ -67,7 +75,9 @@ function writeButton(filePath, headingTag) {
     await vscode.commands.__execute('zemdomu.lintWorkspace');
 
     pageDiagnostics = collection.get(vscode.Uri.file(pagePath)) ?? [];
-    const hasSingleH1 = pageDiagnostics.some(diag => diag.code === 'singleH1');
+    const hasSingleH1 = pageDiagnostics.some(
+      diag => diagnosticCode(diag) === 'singleH1'
+    );
     assert.strictEqual(
       hasSingleH1,
       false,

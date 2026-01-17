@@ -22,6 +22,28 @@ type FileCacheEntry = {
 
 type LintResultWithCode = LintResult & { code?: string };
 
+const DOCS_BASE_URL = "https://zemdomu.dev/docs/";
+const RULE_NAMES = [
+  "requireSectionHeading",
+  "enforceHeadingOrder",
+  "singleH1",
+  "requireAltText",
+  "requireLabelForFormControls",
+  "enforceListNesting",
+  "requireLinkText",
+  "requireTableCaption",
+  "preventEmptyInlineTags",
+  "requireHrefOnAnchors",
+  "requireButtonText",
+  "requireIframeTitle",
+  "requireHtmlLang",
+  "requireImageInputAlt",
+  "requireNavLinks",
+  "uniqueIds",
+] as const;
+
+const DOCS_RULES = new Set<string>(RULE_NAMES);
+
 const diagCache = new Map<string, FileCacheEntry>();
 
 // Monotonic run ids to drop stale async results
@@ -65,6 +87,11 @@ function stableSort(results: LintResult[]): LintResult[] {
   });
 }
 
+function docsUriForRule(rule: string): vscode.Uri | null {
+  if (!DOCS_RULES.has(rule)) return null;
+  return vscode.Uri.parse(`${DOCS_BASE_URL}${encodeURIComponent(rule)}`);
+}
+
 function previewKeys(keys: string[]): string[] {
   if (keys.length <= 6) return keys;
   return [...keys.slice(0, 3), "ΓÇª", ...keys.slice(-3)];
@@ -74,6 +101,37 @@ function previewKeys(keys: string[]): string[] {
 function docEtag(doc: vscode.TextDocument | undefined): string | null {
   if (!doc) return null;
   return `${doc.version}`;
+}
+
+function codeTargetKey(target: unknown): string | null {
+  if (!target) return null;
+  if (typeof (target as { toString?: () => string }).toString === "function") {
+    return (target as { toString: () => string }).toString();
+  }
+  if (typeof (target as { path?: string }).path === "string") {
+    return (target as { path: string }).path;
+  }
+  if (typeof (target as { fsPath?: string }).fsPath === "string") {
+    return (target as { fsPath: string }).fsPath;
+  }
+  return String(target);
+}
+
+function equalDiagnosticCodes(
+  a: vscode.Diagnostic["code"],
+  b: vscode.Diagnostic["code"]
+): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  const aObj = a as { value?: unknown; target?: unknown };
+  const bObj = b as { value?: unknown; target?: unknown };
+  if (typeof a === "object" && typeof b === "object") {
+    return (
+      aObj.value === bObj.value &&
+      codeTargetKey(aObj.target) === codeTargetKey(bObj.target)
+    );
+  }
+  return false;
 }
 
 // Compare two Diagnostic arrays by value
@@ -88,7 +146,7 @@ function equalDiagnostics(
     if (
       x.message !== y.message ||
       x.severity !== y.severity ||
-      x.code !== y.code ||
+      !equalDiagnosticCodes(x.code, y.code) ||
       x.range.start.line !== y.range.start.line ||
       x.range.start.character !== y.range.start.character ||
       x.range.end.line !== y.range.end.line ||
@@ -225,27 +283,8 @@ export function activate(context: vscode.ExtensionContext) {
   function buildOptions(): ProjectLinterOptions {
     const c = cfg();
 
-    const ruleNames = [
-      "requireSectionHeading",
-      "enforceHeadingOrder",
-      "singleH1",
-      "requireAltText",
-      "requireLabelForFormControls",
-      "enforceListNesting",
-      "requireLinkText",
-      "requireTableCaption",
-      "preventEmptyInlineTags",
-      "requireHrefOnAnchors",
-      "requireButtonText",
-      "requireIframeTitle",
-      "requireHtmlLang",
-      "requireImageInputAlt",
-      "requireNavLinks",
-      "uniqueIds",
-    ] as const;
-
     const rules: Record<string, "off" | "warning" | "error"> = {};
-    for (const name of ruleNames) {
+    for (const name of RULE_NAMES) {
       const enabled = c.get(`rules.${name}`, true) as boolean;
       if (!enabled) {
         rules[name] = "off";
@@ -311,7 +350,9 @@ export function activate(context: vscode.ExtensionContext) {
         ruleSeverity(r.rule)
       );
       d.source = "ZemDomu";
-      d.code = rWithCode.code ?? r.rule;
+      const codeValue = rWithCode.code ?? r.rule;
+      const docsUri = docsUriForRule(r.rule);
+      d.code = docsUri ? { value: codeValue, target: docsUri } : codeValue;
       if (r.related && r.related.length) {
         d.relatedInformation = r.related.map((rel) => {
           const relLine = Number.isFinite(rel.line) ? rel.line : 0;

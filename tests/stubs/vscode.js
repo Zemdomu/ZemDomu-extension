@@ -95,14 +95,29 @@ class WorkspaceEdit {
 }
 
 class Uri {
-  constructor(fsPath) {
-    this.fsPath = path.resolve(fsPath);
-    this.scheme = 'file';
-    this.path = this.fsPath.split(path.sep).join(path.posix.sep);
+  constructor(value, scheme = 'file') {
+    this.scheme = scheme;
+    if (scheme === 'file') {
+      this.fsPath = path.resolve(value);
+      this.path = this.fsPath.split(path.sep).join(path.posix.sep);
+    } else {
+      this.fsPath = value;
+      this.path = value;
+    }
   }
 
   static file(fsPath) {
-    return new Uri(fsPath);
+    return new Uri(fsPath, 'file');
+  }
+
+  static parse(value) {
+    const match = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(value);
+    const scheme = match ? match[1] : 'file';
+    return new Uri(value, scheme);
+  }
+
+  toString() {
+    return this.path;
   }
 }
 
