@@ -331,6 +331,6 @@
     "theme": "dark"
   },
   "dependencies": {
-    "zemdomu": "^1.3.14"
+    "zemdomu": "^1.3.15"
   }
 }
