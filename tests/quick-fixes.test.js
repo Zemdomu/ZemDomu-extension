@@ -278,6 +278,38 @@ function makeDiagnostic(doc, message, needle) {
       assert.ok(insert.value.includes('alt=""'));
     }
 
+    // ZMD015 - requireNavLinks
+    {
+      const content = '<nav>\n</nav>';
+      const { doc } = await openDoc(tmpDir, 'nav-links', '.html', content);
+      const diag = makeDiagnostic(
+        doc,
+        '<nav> contains no links',
+        '<nav>'
+      );
+      const action = getAction(provider, doc, diag, 'Add empty <a href> inside <nav>');
+      const insert = action.edit.operations.find(op => op.type === 'insert');
+      assert.ok(insert.value.includes('<a href=""></a>'));
+    }
+
+    // ZMD017 - noTabindexGreaterThanZero
+    {
+      const content = '<div tabindex="2"></div>';
+      const { doc } = await openDoc(tmpDir, 'tabindex', '.html', content);
+      const diag = makeDiagnostic(
+        doc,
+        'Tabindex greater than 0 should be avoided',
+        '<div'
+      );
+      const actionZero = getAction(provider, doc, diag, 'Set tabindex to "0"');
+      const replaceZero = actionZero.edit.operations.find(op => op.type === 'replace');
+      assert.strictEqual(replaceZero.value, '0');
+
+      const actionMinus = getAction(provider, doc, diag, 'Set tabindex to "-1"');
+      const replaceMinus = actionMinus.edit.operations.find(op => op.type === 'replace');
+      assert.strictEqual(replaceMinus.value, '-1');
+    }
+
     console.log('Quick fix tests passed');
   } catch (error) {
     console.error('Quick fix tests failed');

@@ -7,6 +7,8 @@
 - Feature: add quick fix for list nesting (ZMD006) to wrap <li> items with <ul>
 - Feature: add quick fix option for router link "to" attribute when href is missing (ZMD010)
 - Tests: add quick fix coverage for all supported quick fixes
+- Feature: add quick fix to insert an empty <a href> inside <nav> (ZMD015)
+- Feature: add quick fix to set tabindex to 0 or -1 (ZMD017)
 - Security: pin lodash to 4.17.23 via overrides to address dependabot alert
 
 ## 0.0.12

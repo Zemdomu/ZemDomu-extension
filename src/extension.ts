@@ -300,10 +300,72 @@ function isListNestingDiagnostic(diag: vscode.Diagnostic): boolean {
   return diag.message.includes("<li> must be inside a <ul> or <ol>");
 }
 
+function isNavLinksDiagnostic(diag: vscode.Diagnostic): boolean {
+  const code = diagnosticCodeValue(diag.code);
+  if (code === "ZMD015" || code === "requireNavLinks") return true;
+  return diag.message.includes("<nav> contains no links");
+}
+
+function isTabindexDiagnostic(diag: vscode.Diagnostic): boolean {
+  const code = diagnosticCodeValue(diag.code);
+  if (code === "ZMD017" || code === "noTabindexGreaterThanZero") return true;
+  return diag.message.includes("Tabindex greater than 0 should be avoided");
+}
+
 function extractTagName(lineText: string, startChar: number): string | null {
   const slice = lineText.slice(startChar);
   const match = slice.match(/<\s*([A-Za-z][\w:-]*)/);
   return match ? match[1] : null;
+}
+
+function findTabindexValueRange(
+  lineText: string,
+  lineNumber: number
+): { range: vscode.Range } | null {
+  const attrMatch = /tabindex\s*=\s*/i.exec(lineText);
+  if (!attrMatch || attrMatch.index === undefined) return null;
+  const valueStart = attrMatch.index + attrMatch[0].length;
+  if (valueStart >= lineText.length) return null;
+
+  const firstChar = lineText[valueStart];
+  if (firstChar === '"' || firstChar === "'") {
+    const end = lineText.indexOf(firstChar, valueStart + 1);
+    if (end === -1) return null;
+    return {
+      range: new vscode.Range(
+        new vscode.Position(lineNumber, valueStart + 1),
+        new vscode.Position(lineNumber, end)
+      ),
+    };
+  }
+
+  if (firstChar === "{") {
+    const end = lineText.indexOf("}", valueStart + 1);
+    if (end === -1) return null;
+    return {
+      range: new vscode.Range(
+        new vscode.Position(lineNumber, valueStart + 1),
+        new vscode.Position(lineNumber, end)
+      ),
+    };
+  }
+
+  let end = lineText.length;
+  for (let i = valueStart; i < lineText.length; i++) {
+    const ch = lineText[i];
+    if (/\s/.test(ch) || ch === ">" || ch === "/") {
+      end = i;
+      break;
+    }
+  }
+
+  if (end <= valueStart) return null;
+  return {
+    range: new vscode.Range(
+      new vscode.Position(lineNumber, valueStart),
+      new vscode.Position(lineNumber, end)
+    ),
+  };
 }
 
 /** Quick fixes */
@@ -391,6 +453,59 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
         action.diagnostics = [diag];
         action.edit = edit;
         actions.push(action);
+      }
+
+      if (isNavLinksDiagnostic(diag)) {
+        const line = document.lineAt(diag.range.start.line);
+        const lineText = line.text;
+        const gt = lineText.indexOf(">", diag.range.start.character);
+        if (gt !== -1 && lineText[gt - 1] !== "/") {
+          const baseIndent = lineText.match(/^\s*/)?.[0] ?? "";
+          const insertPos = new vscode.Position(diag.range.start.line, gt + 1);
+          const edit = new vscode.WorkspaceEdit();
+          edit.insert(
+            document.uri,
+            insertPos,
+            `\n${baseIndent}${getIndentUnit(document)}<a href=\"\"></a>`
+          );
+          const action = new vscode.CodeAction(
+            "Add empty <a href> inside <nav>",
+            vscode.CodeActionKind.QuickFix
+          );
+          action.diagnostics = [diag];
+          action.edit = edit;
+          actions.push(action);
+        }
+      }
+
+      if (isTabindexDiagnostic(diag)) {
+        const line = document.lineAt(diag.range.start.line);
+        const lineText = line.text;
+        const valueRange = findTabindexValueRange(
+          lineText,
+          diag.range.start.line
+        );
+        if (valueRange) {
+          const editZero = new vscode.WorkspaceEdit();
+          editZero.replace(document.uri, valueRange.range, "0");
+          const actionZero = new vscode.CodeAction(
+            'Set tabindex to "0"',
+            vscode.CodeActionKind.QuickFix
+          );
+          actionZero.diagnostics = [diag];
+          actionZero.edit = editZero;
+          actions.push(actionZero);
+
+          const editMinus = new vscode.WorkspaceEdit();
+          editMinus.replace(document.uri, valueRange.range, "-1");
+          const actionMinus = new vscode.CodeAction(
+            'Set tabindex to "-1"',
+            vscode.CodeActionKind.QuickFix
+          );
+          actionMinus.diagnostics = [diag];
+          actionMinus.edit = editMinus;
+          actions.push(actionMinus);
+        }
       }
 
       if (isSingleH1Diagnostic(diag)) {
