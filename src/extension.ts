@@ -288,6 +288,12 @@ function isHeadingOrderDiagnostic(diag: vscode.Diagnostic): boolean {
   return diag.message.includes("Heading level skipped");
 }
 
+function isSingleH1Diagnostic(diag: vscode.Diagnostic): boolean {
+  const code = diagnosticCodeValue(diag.code);
+  if (code === "ZMD003" || code === "singleH1") return true;
+  return diag.message.includes("Only one <h1>");
+}
+
 /** Quick fixes */
 class ZemCodeActionProvider implements vscode.CodeActionProvider {
   provideCodeActions(
@@ -298,6 +304,53 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
     const actions: vscode.CodeAction[] = [];
 
     for (const diag of context.diagnostics) {
+      if (isSingleH1Diagnostic(diag)) {
+        const docText = document.getText();
+        const startOffset = getOffsetAt(document, diag.range.start, docText);
+        const openRegex = /<h1\b[^>]*>/gi;
+        openRegex.lastIndex = startOffset;
+        const openMatch = openRegex.exec(docText);
+        if (openMatch) {
+          const openStart = openMatch.index;
+          const openNameStart = openStart + 1;
+          const openNameEnd = openNameStart + 2;
+          const edit = new vscode.WorkspaceEdit();
+          edit.replace(
+            document.uri,
+            new vscode.Range(
+              getPositionAt(document, openNameStart, docText),
+              getPositionAt(document, openNameEnd, docText)
+            ),
+            "h2"
+          );
+
+          const closeRegex = /<\/h1\s*>/gi;
+          closeRegex.lastIndex = openStart + openMatch[0].length;
+          const closeMatch = closeRegex.exec(docText);
+          if (closeMatch) {
+            const closeStart = closeMatch.index;
+            const closeNameStart = closeStart + 2;
+            const closeNameEnd = closeNameStart + 2;
+            edit.replace(
+              document.uri,
+              new vscode.Range(
+                getPositionAt(document, closeNameStart, docText),
+                getPositionAt(document, closeNameEnd, docText)
+              ),
+              "h2"
+            );
+          }
+
+          const action = new vscode.CodeAction(
+            "Change to <h2>",
+            vscode.CodeActionKind.QuickFix
+          );
+          action.diagnostics = [diag];
+          action.edit = edit;
+          actions.push(action);
+        }
+      }
+
       if (isHeadingOrderDiagnostic(diag)) {
         const parsed = parseHeadingOrderMessage(diag.message);
         if (parsed) {
