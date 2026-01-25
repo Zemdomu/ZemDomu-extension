@@ -294,6 +294,18 @@ function isSingleH1Diagnostic(diag: vscode.Diagnostic): boolean {
   return diag.message.includes("Only one <h1>");
 }
 
+function isListNestingDiagnostic(diag: vscode.Diagnostic): boolean {
+  const code = diagnosticCodeValue(diag.code);
+  if (code === "ZMD006" || code === "enforceListNesting") return true;
+  return diag.message.includes("<li> must be inside a <ul> or <ol>");
+}
+
+function extractTagName(lineText: string, startChar: number): string | null {
+  const slice = lineText.slice(startChar);
+  const match = slice.match(/<\s*([A-Za-z][\w:-]*)/);
+  return match ? match[1] : null;
+}
+
 /** Quick fixes */
 class ZemCodeActionProvider implements vscode.CodeActionProvider {
   provideCodeActions(
@@ -304,6 +316,83 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
     const actions: vscode.CodeAction[] = [];
 
     for (const diag of context.diagnostics) {
+      if (isListNestingDiagnostic(diag)) {
+        const docText = document.getText();
+        const lines = docText.split(/\r?\n/);
+        const lineAt = (idx: number) => lines[idx] ?? "";
+
+        let startLine = diag.range.start.line;
+        let endLine = diag.range.start.line;
+
+        let jsBlockStart: number | null = null;
+        for (let i = startLine; i >= 0; i--) {
+          const trimmed = lineAt(i).trim();
+          if (!trimmed) continue;
+          if (trimmed.startsWith("<li") || trimmed.startsWith("</li")) {
+            continue;
+          }
+          if (trimmed.startsWith("{") && !trimmed.includes("<")) {
+            jsBlockStart = i;
+            break;
+          }
+          if (trimmed.startsWith("<")) break;
+          break;
+        }
+
+        if (jsBlockStart !== null) {
+          startLine = jsBlockStart;
+          for (let i = jsBlockStart + 1; i < lines.length; i++) {
+            const trimmed = lineAt(i).trim();
+            if (!trimmed) continue;
+            if (trimmed.startsWith("}") && !trimmed.includes("<")) {
+              endLine = i;
+              break;
+            }
+          }
+        } else {
+          for (let i = startLine - 1; i >= 0; i--) {
+            const trimmed = lineAt(i).trim();
+            if (!trimmed) break;
+            if (trimmed.startsWith("<li") || trimmed.startsWith("</li")) {
+              startLine = i;
+              continue;
+            }
+            break;
+          }
+
+          for (let i = endLine + 1; i < lines.length; i++) {
+            const trimmed = lineAt(i).trim();
+            if (!trimmed) break;
+            if (trimmed.startsWith("<li") || trimmed.startsWith("</li")) {
+              endLine = i;
+              continue;
+            }
+            break;
+          }
+        }
+
+        const baseIndent = lineAt(startLine).match(/^\s*/)?.[0] ?? "";
+        const edit = new vscode.WorkspaceEdit();
+        edit.insert(
+          document.uri,
+          new vscode.Position(startLine, 0),
+          `${baseIndent}<ul>\n`
+        );
+        edit.insert(
+          document.uri,
+          new vscode.Position(endLine, lineAt(endLine).length),
+          `\n${baseIndent}</ul>`
+        );
+
+        const action = new vscode.CodeAction(
+          "Wrap with <ul>",
+          vscode.CodeActionKind.QuickFix
+        );
+        action.diagnostics = [diag];
+        action.edit = edit;
+        actions.push(action);
+      }
+
       if (isSingleH1Diagnostic(diag)) {
         const docText = document.getText();
         const startOffset = getOffsetAt(document, diag.range.start, docText);
@@ -466,6 +555,7 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
       const gt = lineText.indexOf(">", diag.range.start.character);
       if (gt === -1) continue;
 
+      const tagName = extractTagName(lineText, diag.range.start.character);
       const insertPos = new vscode.Position(
         diag.range.start.line,
         lineText[gt - 1] === "/" ? gt - 1 : gt
@@ -493,9 +583,29 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
         `alt=""`,
         (m) => m.includes("img") && m.includes("alt")
       );
-      addAttr("Add empty href attribute", `href=""`, (m) =>
-        m.includes("href attribute")
-      );
+      if (diag.message.includes("href attribute")) {
+        const edit = new vscode.WorkspaceEdit();
+        edit.insert(document.uri, insertPos, ` href=""`);
+        const action = new vscode.CodeAction(
+          "Add empty href attribute",
+          vscode.CodeActionKind.QuickFix
+        );
+        action.diagnostics = [diag];
+        action.edit = edit;
+        actions.push(action);
+
+        if (tagName && tagName.toLowerCase() !== "a") {
+          const toEdit = new vscode.WorkspaceEdit();
+          toEdit.insert(document.uri, insertPos, ` to=""`);
+          const toAction = new vscode.CodeAction(
+            "Add empty to attribute",
+            vscode.CodeActionKind.QuickFix
+          );
+          toAction.diagnostics = [diag];
+          toAction.edit = toEdit;
+          actions.push(toAction);
+        }
+      }
       if (diag.message.includes("missing <caption>")) {
         const capPos = new vscode.Position(diag.range.start.line, gt + 1);
         const edit = new vscode.WorkspaceEdit();
@@ -528,6 +638,11 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
         (m) =>
           m.includes("accessible text") ||
           m.includes("aria-label attribute is empty")
+      );
+      addAttr(
+        "Add empty aria-label attribute",
+        `aria-label=""`,
+        (m) => m.includes("Form control")
       );
       addAttr(
         "Add empty alt attribute",

@@ -92,6 +92,15 @@ class WorkspaceEdit {
       value,
     });
   }
+
+  replace(uri, range, value) {
+    this.operations.push({
+      type: 'replace',
+      uri,
+      range,
+      value,
+    });
+  }
 }
 
 class Uri {
@@ -411,17 +420,22 @@ const languages = {
     return collection;
   },
 
-  registerCodeActionsProvider() {
+  registerCodeActionsProvider(_selector, provider, _options) {
+    const entry = { provider };
     const disposable = new Disposable(() => {
-      const index = codeActionProviders.indexOf(disposable);
+      const index = codeActionProviders.indexOf(entry);
       if (index >= 0) codeActionProviders.splice(index, 1);
     });
-    codeActionProviders.push(disposable);
+    codeActionProviders.push(entry);
     return disposable;
   },
 
   __getCollection(name) {
     return diagnosticCollections.get(name);
+  },
+
+  __getCodeActionProviders() {
+    return codeActionProviders.slice();
   },
 
   __reset() {

@@ -3,6 +3,10 @@
 - Feature: add quick fix for missing section headings (ZMD001) with safe heading level selection
 - Feature: add quick fix for heading order skips (ZMD002) to correct the offending heading level
 - Feature: add quick fix for extra <h1> headings (ZMD003) to convert to <h2>
+- Feature: add quick fix for unlabeled form controls (ZMD005) to insert empty aria-label
+- Feature: add quick fix for list nesting (ZMD006) to wrap <li> items with <ul>
+- Feature: add quick fix option for router link "to" attribute when href is missing (ZMD010)
+- Tests: add quick fix coverage for all supported quick fixes
 - Security: pin lodash to 4.17.23 via overrides to address dependabot alert
 
 ## 0.0.12

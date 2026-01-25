@@ -300,7 +300,7 @@
     "watch": "tsc -w",
     "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --minify --external:vscode --outfile=dist/extension.js",
     "package": "vsce package --out dist/zemdomu.vsix",
-    "test": "npm run compile && npm run bundle && node tests/inline-disable.test.js && node tests/linter-labels.test.js && node tests/unique-ids.test.js && node tests/cross-component-extension.test.js && node tests/extension-cross-component.test.js && node tests/vue-extension.test.js && node tests/package-size.test.js",
+    "test": "npm run compile && npm run bundle && node tests/inline-disable.test.js && node tests/linter-labels.test.js && node tests/unique-ids.test.js && node tests/cross-component-extension.test.js && node tests/extension-cross-component.test.js && node tests/vue-extension.test.js && node tests/quick-fixes.test.js && node tests/package-size.test.js",
     "publish-all": "npm install && npm run compile && npm run bundle && npm run package"
   },
   "devDependencies": {
