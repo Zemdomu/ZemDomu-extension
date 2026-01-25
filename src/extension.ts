@@ -157,7 +157,138 @@ function equalDiagnostics(
   return true;
 }
 
-/** Quick fixes (unchanged) */
+function diagnosticCodeValue(
+  code: vscode.Diagnostic["code"]
+): string | null {
+  if (typeof code === "string") return code;
+  if (typeof code === "number") return String(code);
+  if (code && typeof code === "object") {
+    const value = (code as { value?: unknown }).value;
+    if (typeof value === "string") return value;
+    if (typeof value === "number") return String(value);
+  }
+  return null;
+}
+
+function isSectionHeadingDiagnostic(diag: vscode.Diagnostic): boolean {
+  const code = diagnosticCodeValue(diag.code);
+  if (code === "ZMD001" || code === "requireSectionHeading") return true;
+  return (
+    diag.message.includes("<section>") && diag.message.includes("missing heading")
+  );
+}
+
+function getIndentUnit(document: vscode.TextDocument): string {
+  const editor = vscode.window.activeTextEditor;
+  if (editor && editor.document.uri.fsPath === document.uri.fsPath) {
+    const tabSize =
+      typeof editor.options.tabSize === "number" ? editor.options.tabSize : 2;
+    return editor.options.insertSpaces ? " ".repeat(tabSize) : "\t";
+  }
+  return "  ";
+}
+
+function getOffsetAt(
+  document: vscode.TextDocument,
+  pos: vscode.Position,
+  text: string
+): number {
+  const docWithOffset = document as vscode.TextDocument & {
+    offsetAt?: (p: vscode.Position) => number;
+  };
+  if (typeof docWithOffset.offsetAt === "function") {
+    return docWithOffset.offsetAt(pos);
+  }
+  const newlineLength = text.includes("\r\n") ? 2 : 1;
+  const lines = text.split(/\r?\n/);
+  let offset = 0;
+  for (let i = 0; i < pos.line && i < lines.length; i++) {
+    offset += lines[i].length + newlineLength;
+  }
+  if (pos.line < lines.length) {
+    offset += Math.min(pos.character, lines[pos.line].length);
+  }
+  return Math.min(offset, text.length);
+}
+
+function getPositionAt(
+  document: vscode.TextDocument,
+  offset: number,
+  text: string
+): vscode.Position {
+  const docWithPosition = document as vscode.TextDocument & {
+    positionAt?: (o: number) => vscode.Position;
+  };
+  if (typeof docWithPosition.positionAt === "function") {
+    return docWithPosition.positionAt(offset);
+  }
+  const newlineLength = text.includes("\r\n") ? 2 : 1;
+  const lines = text.split(/\r?\n/);
+  let remaining = Math.max(0, Math.min(offset, text.length));
+  for (let i = 0; i < lines.length; i++) {
+    const lineLength = lines[i].length;
+    if (remaining <= lineLength) {
+      return new vscode.Position(i, remaining);
+    }
+    remaining -= lineLength + newlineLength;
+  }
+  const lastLine = Math.max(0, lines.length - 1);
+  return new vscode.Position(lastLine, lines[lastLine]?.length ?? 0);
+}
+
+function getVueTemplateRange(
+  text: string
+): { start: number; end: number } | null {
+  const startMatch = /<template\b[^>]*>/i.exec(text);
+  if (!startMatch) return null;
+  const start = startMatch.index + startMatch[0].length;
+  const endMatch = /<\/template>/i.exec(text.slice(start));
+  if (!endMatch) return null;
+  const end = start + endMatch.index;
+  return { start, end };
+}
+
+function findLastHeadingLevel(text: string): number | null {
+  const regex = /<h([1-6])\b[^>]*>/gi;
+  let match: RegExpExecArray | null;
+  let last: number | null = null;
+  while ((match = regex.exec(text))) {
+    last = Number(match[1]);
+  }
+  return last;
+}
+
+function chooseSectionHeadingLevel(previous: number | null): number {
+  if (!previous) return 2;
+  if (previous <= 1) return 2;
+  return previous;
+}
+
+function parseHeadingOrderMessage(
+  message: string
+): { current: number; last: number } | null {
+  const match = message.match(/<h([1-6])>\s+after\s+<h([1-6])>/i);
+  if (!match) return null;
+  return { current: Number(match[1]), last: Number(match[2]) };
+}
+
+function computeHeadingOrderFixLevel(
+  current: number,
+  last: number
+): number | null {
+  if (current === 1 && last !== 1) return last;
+  if (current > last + 1) return last + 1;
+  if (last > current + 1) return last - 1;
+  return null;
+}
+
+function isHeadingOrderDiagnostic(diag: vscode.Diagnostic): boolean {
+  const code = diagnosticCodeValue(diag.code);
+  if (code === "ZMD002" || code === "enforceHeadingOrder") return true;
+  return diag.message.includes("Heading level skipped");
+}
+
+/** Quick fixes */
 class ZemCodeActionProvider implements vscode.CodeActionProvider {
   provideCodeActions(
     document: vscode.TextDocument,
@@ -167,6 +298,116 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
     const actions: vscode.CodeAction[] = [];
 
     for (const diag of context.diagnostics) {
+      if (isHeadingOrderDiagnostic(diag)) {
+        const parsed = parseHeadingOrderMessage(diag.message);
+        if (parsed) {
+          const desired = computeHeadingOrderFixLevel(
+            parsed.current,
+            parsed.last
+          );
+          if (desired && desired !== parsed.current) {
+            const docText = document.getText();
+            const startOffset = getOffsetAt(
+              document,
+              diag.range.start,
+              docText
+            );
+            const openRegex = new RegExp(
+              `<h${parsed.current}\\b[^>]*>`,
+              "ig"
+            );
+            openRegex.lastIndex = startOffset;
+            const openMatch = openRegex.exec(docText);
+            if (openMatch) {
+              const openStart = openMatch.index;
+              const openNameStart = openStart + 1;
+              const openNameEnd = openNameStart + 2;
+              const edit = new vscode.WorkspaceEdit();
+              edit.replace(
+                document.uri,
+                new vscode.Range(
+                  getPositionAt(document, openNameStart, docText),
+                  getPositionAt(document, openNameEnd, docText)
+                ),
+                `h${desired}`
+              );
+
+              const closeRegex = new RegExp(`</h${parsed.current}\\s*>`, "ig");
+              closeRegex.lastIndex = openStart + openMatch[0].length;
+              const closeMatch = closeRegex.exec(docText);
+              if (closeMatch) {
+                const closeStart = closeMatch.index;
+                const closeNameStart = closeStart + 2;
+                const closeNameEnd = closeNameStart + 2;
+                edit.replace(
+                  document.uri,
+                  new vscode.Range(
+                    getPositionAt(document, closeNameStart, docText),
+                    getPositionAt(document, closeNameEnd, docText)
+                  ),
+                  `h${desired}`
+                );
+              }
+
+              const action = new vscode.CodeAction(
+                `Change to <h${desired}>`,
+                vscode.CodeActionKind.QuickFix
+              );
+              action.diagnostics = [diag];
+              action.edit = edit;
+              actions.push(action);
+            }
+          }
+        }
+      }
+
+      if (isSectionHeadingDiagnostic(diag)) {
+        const docText = document.getText();
+        const sectionStart = getOffsetAt(
+          document,
+          diag.range.start,
+          docText
+        );
+        const tagEnd = docText.indexOf(">", sectionStart);
+        if (tagEnd !== -1 && docText[tagEnd - 1] !== "/") {
+          let searchStart = 0;
+          let searchEnd = sectionStart;
+          if (document.languageId === "vue") {
+            const templateRange = getVueTemplateRange(docText);
+            if (templateRange) {
+              if (
+                sectionStart < templateRange.start ||
+                sectionStart > templateRange.end
+              ) {
+                continue;
+              }
+              searchStart = templateRange.start;
+              searchEnd = Math.min(sectionStart, templateRange.end);
+            }
+          }
+
+          const previousLevel = findLastHeadingLevel(
+            docText.slice(searchStart, searchEnd)
+          );
+          const level = chooseSectionHeadingLevel(previousLevel);
+          const line = document.lineAt(diag.range.start.line);
+          const baseIndent = line.text.match(/^\s*/)?.[0] ?? "";
+          const insertText = `\n${baseIndent}${getIndentUnit(
+            document
+          )}<h${level}>New heading</h${level}>`;
+          const edit = new vscode.WorkspaceEdit();
+          const insertPos = getPositionAt(document, tagEnd + 1, docText);
+          edit.insert(document.uri, insertPos, insertText);
+          const action = new vscode.CodeAction(
+            `Insert <h${level}> heading`,
+            vscode.CodeActionKind.QuickFix
+          );
+          action.diagnostics = [diag];
+          action.edit = edit;
+          actions.push(action);
+        }
+      }
+
       const line = document.lineAt(diag.range.start.line);
       const lineText = line.text;
       const gt = lineText.indexOf(">", diag.range.start.character);
