@@ -40,9 +40,12 @@ const RULE_NAMES = [
   "requireImageInputAlt",
   "requireNavLinks",
   "uniqueIds",
+  "preventZemdomuPlaceholders",
 ] as const;
 
 const DOCS_RULES = new Set<string>(RULE_NAMES);
+
+const QUICK_FIX_PLACEHOLDER = "TODO-ZMD";
 
 const diagCache = new Map<string, FileCacheEntry>();
 
@@ -368,6 +371,413 @@ function findTabindexValueRange(
   };
 }
 
+type TagInfo = {
+  name: string;
+  start: number;
+  end: number;
+  text: string;
+};
+
+type ParsedAttr = {
+  name: string;
+  value: string | null;
+  dynamic: boolean;
+  nameStart: number;
+  nameEnd: number;
+  valueStart: number | null;
+  valueEnd: number | null;
+};
+
+const FORM_CONTROL_TAGS = new Set(["input", "select", "textarea"]);
+
+function findFormControlTag(text: string, offset: number): TagInfo | null {
+  const matchTagAt = (idx: number): TagInfo | null => {
+    if (text[idx] !== "<") return null;
+    if (text.startsWith("</", idx) || text.startsWith("<!--", idx)) return null;
+    const match = text.slice(idx).match(/^<\s*([A-Za-z][\w:-]*)/);
+    if (!match) return null;
+    const name = match[1].toLowerCase();
+    if (!FORM_CONTROL_TAGS.has(name)) return null;
+    const end = text.indexOf(">", idx);
+    if (end === -1) return null;
+    return { name, start: idx, end, text: text.slice(idx, end + 1) };
+  };
+
+  for (let i = Math.min(offset, text.length - 1); i >= 0; i--) {
+    if (text[i] !== "<") continue;
+    const tag = matchTagAt(i);
+    if (tag) return tag;
+  }
+
+  const forward = text.slice(offset).match(/<\s*(input|select|textarea)\b[^>]*>/i);
+  if (forward && forward.index !== undefined) {
+    const start = offset + forward.index;
+    const end = start + forward[0].length - 1;
+    return { name: forward[1].toLowerCase(), start, end, text: forward[0] };
+  }
+  return null;
+}
+
+function parseTagAttributes(tagText: string): ParsedAttr[] {
+  const tagMatch = tagText.match(/^<\s*([A-Za-z][\w:-]*)\b([^>]*)>/);
+  if (!tagMatch) return [];
+  const attrPart = tagMatch[2] ?? "";
+  const attrOffset = tagMatch[0].indexOf(attrPart);
+  const attrs: ParsedAttr[] = [];
+  const attrRegex =
+    /([A-Za-z_:][\w:.-]*)(?:\s*=\s*(\"[^\"]*\"|'[^']*'|\{[^}]*\}|[^\s>]+))?/g;
+  let match: RegExpExecArray | null;
+  while ((match = attrRegex.exec(attrPart))) {
+    const name = match[1];
+    const rawValue = match[2];
+    const attrStart = attrOffset + match.index;
+    const nameStart = attrStart;
+    const nameEnd = attrStart + name.length;
+    if (rawValue === undefined) {
+      attrs.push({
+        name,
+        value: "",
+        dynamic: false,
+        nameStart,
+        nameEnd,
+        valueStart: null,
+        valueEnd: null,
+      });
+      continue;
+    }
+    if (rawValue.startsWith("{")) {
+      attrs.push({
+        name,
+        value: null,
+        dynamic: true,
+        nameStart,
+        nameEnd,
+        valueStart: null,
+        valueEnd: null,
+      });
+      continue;
+    }
+    let value = rawValue;
+    let valueStart = attrStart + match[0].indexOf(rawValue);
+    let valueEnd = valueStart + rawValue.length;
+    if (
+      (rawValue.startsWith("\"") && rawValue.endsWith("\"")) ||
+      (rawValue.startsWith("'") && rawValue.endsWith("'"))
+    ) {
+      value = rawValue.slice(1, -1);
+      valueStart += 1;
+      valueEnd = valueStart + value.length;
+    }
+    attrs.push({
+      name,
+      value,
+      dynamic: false,
+      nameStart,
+      nameEnd,
+      valueStart,
+      valueEnd,
+    });
+  }
+  return attrs;
+}
+
+function findAttribute(
+  attrs: ParsedAttr[],
+  names: string[],
+  caseInsensitive: boolean
+): ParsedAttr | null {
+  for (const attr of attrs) {
+    for (const name of names) {
+      if (
+        caseInsensitive
+          ? attr.name.toLowerCase() === name.toLowerCase()
+          : attr.name === name
+      ) {
+        return attr;
+      }
+    }
+  }
+  return null;
+}
+
+function getTagInsertOffset(text: string, tag: TagInfo): number {
+  return text[tag.end - 1] === "/" ? tag.end - 1 : tag.end;
+}
+
+function buildLineStarts(text: string): number[] {
+  const starts = [0];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "\n") starts.push(i + 1);
+  }
+  return starts;
+}
+
+function findNearbyLabelTag(
+  text: string,
+  controlStart: number,
+  controlLine: number,
+  lineStarts: number[]
+): TagInfo | null {
+  const lines = text.split(/\r?\n/);
+  const maxLinesBack = 3;
+  for (let line = controlLine; line >= Math.max(0, controlLine - maxLinesBack); line--) {
+    const lineText = lines[line] ?? "";
+    const searchEnd =
+      line === controlLine ? Math.max(0, controlStart - lineStarts[line]) : lineText.length;
+    const slice = lineText.slice(0, searchEnd).toLowerCase();
+    const idx = slice.lastIndexOf("<label");
+    if (idx === -1) continue;
+    const absStart = lineStarts[line] + idx;
+    const end = text.indexOf(">", absStart);
+    if (end === -1) return null;
+    return { name: "label", start: absStart, end, text: text.slice(absStart, end + 1) };
+  }
+  return null;
+}
+
+function suggestLabelText(attrs: ParsedAttr[]): string {
+  const placeholder = findAttribute(attrs, ["placeholder"], true);
+  if (placeholder && !placeholder.dynamic && placeholder.value && placeholder.value.trim()) {
+    return placeholder.value.trim();
+  }
+  const name = findAttribute(attrs, ["name"], true);
+  if (name && !name.dynamic && name.value && name.value.trim()) {
+    return name.value.trim();
+  }
+  return QUICK_FIX_PLACEHOLDER;
+}
+
+function addFormControlQuickFixes(
+  document: vscode.TextDocument,
+  diag: vscode.Diagnostic,
+  actions: vscode.CodeAction[]
+) {
+  if (!diag.message.includes("Form control")) return;
+
+  const docText = document.getText();
+  const startOffset = getOffsetAt(document, diag.range.start, docText);
+  const controlTag = findFormControlTag(docText, startOffset);
+  if (!controlTag) {
+    return;
+  }
+
+  const ext = path.extname(document.uri.fsPath).toLowerCase();
+  const isJsx = ext === ".jsx" || ext === ".tsx";
+  const labelAttrName = isJsx ? "htmlFor" : "for";
+  const caseInsensitive = !isJsx;
+
+  const controlAttrs = parseTagAttributes(controlTag.text);
+  const idAttr = findAttribute(controlAttrs, ["id"], true);
+  const idValue =
+    idAttr && !idAttr.dynamic && idAttr.value && idAttr.value.trim()
+      ? idAttr.value.trim()
+      : null;
+  const hasIdValue = !!idValue;
+  const idAttrDynamic = !!(idAttr && idAttr.dynamic);
+
+  const lineStarts = buildLineStarts(docText);
+  const controlPos = getPositionAt(document, controlTag.start, docText);
+  const labelTag = findNearbyLabelTag(
+    docText,
+    controlTag.start,
+    controlPos.line,
+    lineStarts
+  );
+
+  const labelAttrs = labelTag ? parseTagAttributes(labelTag.text) : [];
+  const labelAttr = labelTag
+    ? findAttribute(labelAttrs, [labelAttrName, "for", "htmlFor"], caseInsensitive)
+    : null;
+  const labelAttrValue =
+    labelAttr && !labelAttr.dynamic && labelAttr.value && labelAttr.value.trim()
+      ? labelAttr.value.trim()
+      : null;
+  const labelAttrEmpty =
+    labelAttr && !labelAttr.dynamic && (labelAttr.value ?? "").trim().length === 0;
+  const labelAttrDynamic = !!(labelAttr && labelAttr.dynamic);
+
+  const placeholderId = QUICK_FIX_PLACEHOLDER;
+  const labelText = suggestLabelText(controlAttrs);
+
+  const setAttributeValue = (
+    edit: vscode.WorkspaceEdit,
+    tag: TagInfo,
+    attrs: ParsedAttr[],
+    attrName: string,
+    value: string,
+    allowReplaceNonMatching: boolean
+  ): boolean => {
+    const attr = findAttribute(attrs, [attrName], caseInsensitive);
+    if (attr) {
+      if (attr.dynamic) return false;
+      const current = (attr.value ?? "").trim();
+      if (current.length > 0 && current !== value && !allowReplaceNonMatching) {
+        return false;
+      }
+      if (attr.valueStart !== null && attr.valueEnd !== null) {
+        if (current === value) return false;
+        const start = getPositionAt(
+          document,
+          tag.start + attr.valueStart,
+          docText
+        );
+        const end = getPositionAt(
+          document,
+          tag.start + attr.valueEnd,
+          docText
+        );
+        edit.replace(document.uri, new vscode.Range(start, end), value);
+        return true;
+      }
+      const nameEnd = getPositionAt(
+        document,
+        tag.start + attr.nameEnd,
+        docText
+      );
+      edit.insert(document.uri, nameEnd, `="${value}"`);
+      return true;
+    }
+    const insertOffset = getTagInsertOffset(docText, tag);
+    const insertPos = getPositionAt(document, insertOffset, docText);
+    edit.insert(document.uri, insertPos, ` ${attrName}="${value}"`);
+    return true;
+  };
+
+  const insertLabelBeforeControl = (id: string) => {
+    const edit = new vscode.WorkspaceEdit();
+    const baseIndent =
+      document.lineAt(controlPos.line).text.match(/^\s*/)?.[0] ?? "";
+    const labelSnippet = `${baseIndent}<label ${labelAttrName}="${id}">${labelText}</label>\n`;
+    edit.insert(
+      document.uri,
+      getPositionAt(document, controlTag.start, docText),
+      labelSnippet
+    );
+    const action = new vscode.CodeAction(
+      "Insert <label> before control",
+      vscode.CodeActionKind.QuickFix
+    );
+    action.diagnostics = [diag];
+    action.edit = edit;
+    actions.push(action);
+  };
+
+  const addAriaLabel = () => {
+    const edit = new vscode.WorkspaceEdit();
+    const didSet = setAttributeValue(
+      edit,
+      controlTag,
+      controlAttrs,
+      "aria-label",
+      QUICK_FIX_PLACEHOLDER,
+      true
+    );
+    if (!didSet) return;
+    const action = new vscode.CodeAction(
+      `Add aria-label="${QUICK_FIX_PLACEHOLDER}"`,
+      vscode.CodeActionKind.QuickFix
+    );
+    action.diagnostics = [diag];
+    action.edit = edit;
+    actions.push(action);
+  };
+
+  if (hasIdValue) {
+    if (labelTag) {
+      if (!labelAttr || labelAttrEmpty) {
+        if (labelAttrDynamic) {
+          addAriaLabel();
+          return;
+        }
+        const edit = new vscode.WorkspaceEdit();
+        const didSet = setAttributeValue(
+          edit,
+          labelTag,
+          labelAttrs,
+          labelAttrName,
+          idValue,
+          false
+        );
+        if (!didSet) {
+          addAriaLabel();
+          return;
+        }
+        const action = new vscode.CodeAction(
+          `Add ${labelAttrName} to <label>`,
+          vscode.CodeActionKind.QuickFix
+        );
+        action.diagnostics = [diag];
+        action.edit = edit;
+        actions.push(action);
+      } else if (labelAttrValue && labelAttrValue !== idValue) {
+        addAriaLabel();
+      }
+    } else {
+      insertLabelBeforeControl(idValue);
+    }
+    return;
+  }
+
+  if (labelTag) {
+    if (idAttrDynamic || labelAttrDynamic) {
+      addAriaLabel();
+      return;
+    }
+    const idToUse = labelAttrValue ?? placeholderId;
+    const edit = new vscode.WorkspaceEdit();
+    const idSet = setAttributeValue(
+      edit,
+      controlTag,
+      controlAttrs,
+      "id",
+      idToUse,
+      false
+    );
+    if (!idSet) return;
+    if (!labelAttrValue || labelAttrEmpty) {
+      setAttributeValue(edit, labelTag, labelAttrs, labelAttrName, idToUse, false);
+    }
+    const action = new vscode.CodeAction(
+      "Add id and link <label>",
+      vscode.CodeActionKind.QuickFix
+    );
+    action.diagnostics = [diag];
+    action.edit = edit;
+    actions.push(action);
+    return;
+  }
+
+  addAriaLabel();
+
+  if (!idAttrDynamic) {
+    const edit = new vscode.WorkspaceEdit();
+    const idSet = setAttributeValue(
+      edit,
+      controlTag,
+      controlAttrs,
+      "id",
+      placeholderId,
+      false
+    );
+    if (!idSet) return;
+    const baseIndent =
+      document.lineAt(controlPos.line).text.match(/^\s*/)?.[0] ?? "";
+    const labelSnippet = `${baseIndent}<label ${labelAttrName}="${placeholderId}">${labelText}</label>\n`;
+    edit.insert(
+      document.uri,
+      getPositionAt(document, controlTag.start, docText),
+      labelSnippet
+    );
+    const action = new vscode.CodeAction(
+      "Add <label> and id",
+      vscode.CodeActionKind.QuickFix
+    );
+    action.diagnostics = [diag];
+    action.edit = edit;
+    actions.push(action);
+  }
+}
+
 /** Quick fixes */
 class ZemCodeActionProvider implements vscode.CodeActionProvider {
   provideCodeActions(
@@ -466,10 +876,10 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
           edit.insert(
             document.uri,
             insertPos,
-            `\n${baseIndent}${getIndentUnit(document)}<a href=\"\"></a>`
+            `\n${baseIndent}${getIndentUnit(document)}<a href=\"${QUICK_FIX_PLACEHOLDER}\">${QUICK_FIX_PLACEHOLDER}</a>`
           );
           const action = new vscode.CodeAction(
-            "Add empty <a href> inside <nav>",
+            `Add <a href="${QUICK_FIX_PLACEHOLDER}"> inside <nav>`,
             vscode.CodeActionKind.QuickFix
           );
           action.diagnostics = [diag];
@@ -665,6 +1075,8 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
         }
       }
 
+      addFormControlQuickFixes(document, diag, actions);
+
       const line = document.lineAt(diag.range.start.line);
       const lineText = line.text;
       const gt = lineText.indexOf(">", diag.range.start.character);
@@ -694,15 +1106,15 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
       };
 
       addAttr(
-        "Add empty alt attribute",
-        `alt=""`,
+        `Add alt="${QUICK_FIX_PLACEHOLDER}"`,
+        `alt="${QUICK_FIX_PLACEHOLDER}"`,
         (m) => m.includes("img") && m.includes("alt")
       );
       if (diag.message.includes("href attribute")) {
         const edit = new vscode.WorkspaceEdit();
-        edit.insert(document.uri, insertPos, ` href=""`);
+        edit.insert(document.uri, insertPos, ` href="${QUICK_FIX_PLACEHOLDER}"`);
         const action = new vscode.CodeAction(
-          "Add empty href attribute",
+          `Add href="${QUICK_FIX_PLACEHOLDER}"`,
           vscode.CodeActionKind.QuickFix
         );
         action.diagnostics = [diag];
@@ -711,9 +1123,9 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
 
         if (tagName && tagName.toLowerCase() !== "a") {
           const toEdit = new vscode.WorkspaceEdit();
-          toEdit.insert(document.uri, insertPos, ` to=""`);
+          toEdit.insert(document.uri, insertPos, ` to="${QUICK_FIX_PLACEHOLDER}"`);
           const toAction = new vscode.CodeAction(
-            "Add empty to attribute",
+            `Add to="${QUICK_FIX_PLACEHOLDER}"`,
             vscode.CodeActionKind.QuickFix
           );
           toAction.diagnostics = [diag];
@@ -724,9 +1136,13 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
       if (diag.message.includes("missing <caption>")) {
         const capPos = new vscode.Position(diag.range.start.line, gt + 1);
         const edit = new vscode.WorkspaceEdit();
-        edit.insert(document.uri, capPos, "\n  <caption></caption>");
+        edit.insert(
+          document.uri,
+          capPos,
+          `\n  <caption>${QUICK_FIX_PLACEHOLDER}</caption>`
+        );
         const action = new vscode.CodeAction(
-          "Add empty <caption>",
+          `Add <caption>${QUICK_FIX_PLACEHOLDER}</caption>`,
           vscode.CodeActionKind.QuickFix
         );
         action.diagnostics = [diag];
@@ -734,34 +1150,29 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
         actions.push(action);
       }
       addAttr(
-        "Add empty title attribute",
-        `title=""`,
+        `Add title="${QUICK_FIX_PLACEHOLDER}"`,
+        `title="${QUICK_FIX_PLACEHOLDER}"`,
         (m) =>
           m.includes("missing title attribute") ||
           m.includes("title attribute is empty")
       );
       addAttr(
-        "Add empty lang attribute",
-        `lang=""`,
+        `Add lang="${QUICK_FIX_PLACEHOLDER}"`,
+        `lang="${QUICK_FIX_PLACEHOLDER}"`,
         (m) =>
           m.includes("missing lang attribute") ||
           m.includes("lang attribute is empty")
       );
       addAttr(
-        "Add empty aria-label attribute",
-        `aria-label=""`,
+        `Add aria-label="${QUICK_FIX_PLACEHOLDER}"`,
+        `aria-label="${QUICK_FIX_PLACEHOLDER}"`,
         (m) =>
           m.includes("accessible text") ||
           m.includes("aria-label attribute is empty")
       );
       addAttr(
-        "Add empty aria-label attribute",
-        `aria-label=""`,
-        (m) => m.includes("Form control")
-      );
-      addAttr(
-        "Add empty alt attribute",
-        `alt=""`,
+        `Add alt="${QUICK_FIX_PLACEHOLDER}"`,
+        `alt="${QUICK_FIX_PLACEHOLDER}"`,
         (m) => m.includes('input type="image"') && m.includes("alt attribute")
       );
     }

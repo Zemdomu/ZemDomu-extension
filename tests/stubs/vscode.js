@@ -243,6 +243,7 @@ function primeConfigDefaults() {
     'requireImageInputAlt',
     'requireNavLinks',
     'uniqueIds',
+    'preventZemdomuPlaceholders',
   ];
   for (const rule of rules) {
     configValues.set(`rules.${rule}`, true);

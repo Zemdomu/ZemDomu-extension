@@ -81,12 +81,13 @@ Supported rules:
 - requireTableCaption
 - preventEmptyInlineTags
 - requireHrefOnAnchors
-- requireButtonText
+- requireButtonText (non-empty accessible name from content, aria-label, or aria-labelledby)
 - requireIframeTitle
 - requireHtmlLang
 - requireImageInputAlt
 - requireNavLinks
 - uniqueIds
+- preventZemdomuPlaceholders
 
 ### Inline disabling
 

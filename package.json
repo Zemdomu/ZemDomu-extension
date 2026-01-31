@@ -148,6 +148,11 @@
           "default": true,
           "description": "Warn when multiple elements share the same id."
         },
+        "zemdomu.rules.preventZemdomuPlaceholders": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when TODO-ZMD placeholders remain in markup."
+        },
         "zemdomu.severity.requireSectionHeading": {
           "type": "string",
           "enum": [
@@ -291,6 +296,15 @@
           ],
           "default": "warning",
           "description": "Severity for the uniqueIds rule."
+        },
+        "zemdomu.severity.preventZemdomuPlaceholders": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the preventZemdomuPlaceholders rule."
         }
       }
     }

@@ -131,9 +131,9 @@ function makeDiagnostic(doc, message, needle) {
         '<img> tag missing or empty alt attribute',
         '<img'
       );
-      const action = getAction(provider, doc, diag, 'Add empty alt attribute');
+      const action = getAction(provider, doc, diag, 'Add alt="TODO-ZMD"');
       const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('alt=""'));
+      assert.ok(insert.value.includes('alt="TODO-ZMD"'));
     }
 
     // ZMD005 - requireLabelForFormControls
@@ -145,9 +145,57 @@ function makeDiagnostic(doc, message, needle) {
         'Form control missing id or aria-label',
         '<input'
       );
-      const action = getAction(provider, doc, diag, 'Add empty aria-label attribute');
+      const ariaAction = getAction(provider, doc, diag, 'Add aria-label="TODO-ZMD"');
+      const ariaInsert = ariaAction.edit.operations.find(op => op.type === 'insert');
+      assert.ok(ariaInsert.value.includes('aria-label="TODO-ZMD"'));
+
+      const labelAction = getAction(provider, doc, diag, 'Add <label> and id');
+      const labelInserts = labelAction.edit.operations.filter(op => op.type === 'insert');
+      assert.ok(labelInserts.some(op => op.value.includes('<label') && op.value.includes('for="TODO-ZMD"')));
+      assert.ok(labelInserts.some(op => op.value.includes('id="TODO-ZMD"')));
+    }
+
+    // ZMD005 - requireLabelForFormControls (existing id, missing label)
+    {
+      const content = '<input id="email" type="email">';
+      const { doc } = await openDoc(tmpDir, 'form-label-id', '.html', content);
+      const diag = makeDiagnostic(
+        doc,
+        'Form control with id="email" missing <label for="email">',
+        '<input'
+      );
+      const action = getAction(provider, doc, diag, 'Insert <label> before control');
       const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('aria-label=""'));
+      assert.ok(insert.value.includes('<label'));
+      assert.ok(insert.value.includes('for="email"'));
+    }
+
+    // ZMD005 - requireLabelForFormControls (label missing for)
+    {
+      const content = '<label>Email</label>\n<input id="email">';
+      const { doc } = await openDoc(tmpDir, 'form-label-missing-for', '.html', content);
+      const diag = makeDiagnostic(
+        doc,
+        'Form control with id="email" missing <label for="email">',
+        '<input'
+      );
+      const action = getAction(provider, doc, diag, 'Add for to <label>');
+      const insert = action.edit.operations.find(op => op.type === 'insert');
+      assert.ok(insert.value.includes('for="email"'));
+    }
+
+    // ZMD005 - requireLabelForFormControls (JSX uses htmlFor)
+    {
+      const content = '<label>Email</label>\n<input id="email" />';
+      const { doc } = await openDoc(tmpDir, 'form-label-jsx', '.jsx', content);
+      const diag = makeDiagnostic(
+        doc,
+        'Form control with id="email" missing <label for="email">',
+        '<input'
+      );
+      const action = getAction(provider, doc, diag, 'Add htmlFor to <label>');
+      const insert = action.edit.operations.find(op => op.type === 'insert');
+      assert.ok(insert.value.includes('htmlFor="email"'));
     }
 
     // ZMD006 - enforceListNesting (plain list)
@@ -189,9 +237,9 @@ function makeDiagnostic(doc, message, needle) {
         '<table> missing <caption>',
         '<table>'
       );
-      const action = getAction(provider, doc, diag, 'Add empty <caption>');
+      const action = getAction(provider, doc, diag, 'Add <caption>TODO-ZMD</caption>');
       const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('<caption></caption>'));
+      assert.ok(insert.value.includes('<caption>TODO-ZMD</caption>'));
     }
 
     // ZMD010 - requireHrefOnAnchors
@@ -203,9 +251,9 @@ function makeDiagnostic(doc, message, needle) {
         '<a> tag missing non-empty href attribute',
         '<a>'
       );
-      const action = getAction(provider, doc, diag, 'Add empty href attribute');
+      const action = getAction(provider, doc, diag, 'Add href="TODO-ZMD"');
       const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('href=""'));
+      assert.ok(insert.value.includes('href="TODO-ZMD"'));
     }
 
     // ZMD010 - requireHrefOnAnchors (router-style link)
@@ -217,9 +265,9 @@ function makeDiagnostic(doc, message, needle) {
         '<a> tag missing non-empty href attribute',
         '<Link>'
       );
-      const action = getAction(provider, doc, diag, 'Add empty to attribute');
+      const action = getAction(provider, doc, diag, 'Add to="TODO-ZMD"');
       const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('to=""'));
+      assert.ok(insert.value.includes('to="TODO-ZMD"'));
     }
 
     // ZMD011 - requireButtonText
@@ -231,9 +279,9 @@ function makeDiagnostic(doc, message, needle) {
         '<button> missing accessible text',
         '<button>'
       );
-      const action = getAction(provider, doc, diag, 'Add empty aria-label attribute');
+      const action = getAction(provider, doc, diag, 'Add aria-label="TODO-ZMD"');
       const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('aria-label=""'));
+      assert.ok(insert.value.includes('aria-label="TODO-ZMD"'));
     }
 
     // ZMD012 - requireIframeTitle
@@ -245,9 +293,9 @@ function makeDiagnostic(doc, message, needle) {
         '<iframe> missing title attribute',
         '<iframe>'
       );
-      const action = getAction(provider, doc, diag, 'Add empty title attribute');
+      const action = getAction(provider, doc, diag, 'Add title="TODO-ZMD"');
       const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('title=""'));
+      assert.ok(insert.value.includes('title="TODO-ZMD"'));
     }
 
     // ZMD013 - requireHtmlLang
@@ -259,9 +307,9 @@ function makeDiagnostic(doc, message, needle) {
         '<html> element missing lang attribute',
         '<html>'
       );
-      const action = getAction(provider, doc, diag, 'Add empty lang attribute');
+      const action = getAction(provider, doc, diag, 'Add lang="TODO-ZMD"');
       const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('lang=""'));
+      assert.ok(insert.value.includes('lang="TODO-ZMD"'));
     }
 
     // ZMD014 - requireImageInputAlt
@@ -273,9 +321,9 @@ function makeDiagnostic(doc, message, needle) {
         '<input type="image"> missing alt attribute',
         '<input'
       );
-      const action = getAction(provider, doc, diag, 'Add empty alt attribute');
+      const action = getAction(provider, doc, diag, 'Add alt="TODO-ZMD"');
       const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('alt=""'));
+      assert.ok(insert.value.includes('alt="TODO-ZMD"'));
     }
 
     // ZMD015 - requireNavLinks
@@ -287,9 +335,9 @@ function makeDiagnostic(doc, message, needle) {
         '<nav> contains no links',
         '<nav>'
       );
-      const action = getAction(provider, doc, diag, 'Add empty <a href> inside <nav>');
+      const action = getAction(provider, doc, diag, 'Add <a href="TODO-ZMD"> inside <nav>');
       const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('<a href=""></a>'));
+      assert.ok(insert.value.includes('<a href="TODO-ZMD">TODO-ZMD</a>'));
     }
 
     // ZMD017 - noTabindexGreaterThanZero

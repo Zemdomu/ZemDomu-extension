@@ -10,6 +10,9 @@
 - Feature: add quick fix to insert an empty <a href> inside <nav> (ZMD015)
 - Feature: add quick fix to set tabindex to 0 or -1 (ZMD017)
 - Security: pin lodash to 4.17.23 via overrides to address dependabot alert
+- Docs: clarify requireButtonText expectations for accessible names (content, aria-label, aria-labelledby)
+- Feature: expand ZMD005 quick fixes for labels/id/htmlFor/for and placeholder aria-labels
+- Feature: add ZMD018 placeholder warnings and switch quick fix placeholders to TODO-ZMD
 
 ## 0.0.12
 
