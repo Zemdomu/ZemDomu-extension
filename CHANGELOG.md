@@ -13,6 +13,9 @@
 - Docs: clarify requireButtonText expectations for accessible names (content, aria-label, aria-labelledby)
 - Feature: expand ZMD005 quick fixes for labels/id/htmlFor/for and placeholder aria-labels
 - Feature: add ZMD018 placeholder warnings and switch quick fix placeholders to TODO-ZMD
+- Bugfix: wrap full <li> blocks for ZMD006 quick fixes instead of only the opening line
+- Bugfix: clear stale diagnostics on file save when issues are resolved
+- Feature: ZMD001 quick fix adds aria-label/aria-labelledby placeholders instead of inserting headings
 
 ## 0.0.12
 

@@ -78,18 +78,33 @@ function makeDiagnostic(doc, message, needle) {
 
     const provider = getProvider();
 
-    // ZMD001 - requireSectionHeading
+    // ZMD001 - requireSectionHeading (aria-labelledby when child exists)
     {
-      const content = '<h2>Main</h2>\n<section>\n  <p>Hi</p>\n</section>';
+      const content = '<section>\n  <p>Hi</p>\n</section>';
       const { doc } = await openDoc(tmpDir, 'section', '.html', content);
       const diag = makeDiagnostic(
         doc,
-        '<section> missing heading (<h1>-<h6>)',
+        '<section> missing heading (<h1>-<h6>) or accessible label (aria-label / aria-labelledby)',
         '<section>'
       );
-      const action = getAction(provider, doc, diag, 'Insert <h2> heading');
+      const action = getAction(provider, doc, diag, 'Add aria-labelledby="TODO-ZMD"');
+      const inserts = action.edit.operations.filter(op => op.type === 'insert');
+      assert.ok(inserts.some(op => op.value.includes('aria-labelledby="TODO-ZMD"')));
+      assert.ok(inserts.some(op => op.value.includes('id="TODO-ZMD"')));
+    }
+
+    // ZMD001 - requireSectionHeading (aria-label when empty)
+    {
+      const content = '<section></section>';
+      const { doc } = await openDoc(tmpDir, 'section-empty', '.html', content);
+      const diag = makeDiagnostic(
+        doc,
+        '<section> missing heading (<h1>-<h6>) or accessible label (aria-label / aria-labelledby)',
+        '<section>'
+      );
+      const action = getAction(provider, doc, diag, 'Add aria-label="TODO-ZMD"');
       const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('<h2>New heading</h2>'));
+      assert.ok(insert.value.includes('aria-label="TODO-ZMD"'));
     }
 
     // ZMD002 - enforceHeadingOrder
@@ -226,6 +241,23 @@ function makeDiagnostic(doc, message, needle) {
       const inserts = action.edit.operations.filter(op => op.type === 'insert');
       assert.ok(inserts.some(op => op.position.line === 0 && op.value.includes('<ul>')));
       assert.ok(inserts.some(op => op.value.includes('</ul>')));
+    }
+
+    // ZMD006 - enforceListNesting (multiline li)
+    {
+      const content = '<li>\n  <span>Item</span>\n</li>';
+      const { doc } = await openDoc(tmpDir, 'list-nesting-multi', '.jsx', content);
+      const diag = makeDiagnostic(
+        doc,
+        '<li> must be inside a <ul> or <ol>',
+        '<li>'
+      );
+      const action = getAction(provider, doc, diag, 'Wrap with <ul>');
+      const inserts = action.edit.operations.filter(op => op.type === 'insert');
+      const closeInsert = inserts.find(op => op.value.includes('</ul>'));
+      assert.ok(inserts.some(op => op.position.line === 0 && op.value.includes('<ul>')));
+      assert.ok(closeInsert, 'Expected closing </ul> insert');
+      assert.strictEqual(closeInsert.position.line, 2);
     }
 
     // ZMD008 - requireTableCaption

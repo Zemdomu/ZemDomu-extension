@@ -373,6 +373,7 @@ function findTabindexValueRange(
 
 type TagInfo = {
   name: string;
+  rawName?: string;
   start: number;
   end: number;
   text: string;
@@ -504,6 +505,41 @@ function getTagInsertOffset(text: string, tag: TagInfo): number {
   return text[tag.end - 1] === "/" ? tag.end - 1 : tag.end;
 }
 
+function setAttributeValue(
+  document: vscode.TextDocument,
+  docText: string,
+  edit: vscode.WorkspaceEdit,
+  tag: TagInfo,
+  attrs: ParsedAttr[],
+  attrName: string,
+  value: string,
+  caseInsensitive: boolean,
+  allowReplaceNonMatching: boolean
+): boolean {
+  const attr = findAttribute(attrs, [attrName], caseInsensitive);
+  if (attr) {
+    if (attr.dynamic) return false;
+    const current = (attr.value ?? "").trim();
+    if (current.length > 0 && current !== value && !allowReplaceNonMatching) {
+      return false;
+    }
+    if (attr.valueStart !== null && attr.valueEnd !== null) {
+      if (current === value) return false;
+      const start = getPositionAt(document, tag.start + attr.valueStart, docText);
+      const end = getPositionAt(document, tag.start + attr.valueEnd, docText);
+      edit.replace(document.uri, new vscode.Range(start, end), value);
+      return true;
+    }
+    const nameEnd = getPositionAt(document, tag.start + attr.nameEnd, docText);
+    edit.insert(document.uri, nameEnd, `="${value}"`);
+    return true;
+  }
+  const insertOffset = getTagInsertOffset(docText, tag);
+  const insertPos = getPositionAt(document, insertOffset, docText);
+  edit.insert(document.uri, insertPos, ` ${attrName}="${value}"`);
+  return true;
+}
+
 function buildLineStarts(text: string): number[] {
   const starts = [0];
   for (let i = 0; i < text.length; i++) {
@@ -531,6 +567,98 @@ function findNearbyLabelTag(
     const end = text.indexOf(">", absStart);
     if (end === -1) return null;
     return { name: "label", start: absStart, end, text: text.slice(absStart, end + 1) };
+  }
+  return null;
+}
+
+type TagRange = { start: number; end: number };
+
+function readListItemTag(text: string, index: number): { end: number; closing: boolean; selfClosing: boolean } | null {
+  if (text[index] !== "<") return null;
+  const slice = text.slice(index, index + 5);
+  const isClosing = slice.toLowerCase().startsWith("</li");
+  const isOpening = slice.toLowerCase().startsWith("<li");
+  if (!isClosing && !isOpening) return null;
+  const nextChar = text[index + (isClosing ? 4 : 3)];
+  if (nextChar && !/[\s/>]/.test(nextChar)) return null;
+  const end = text.indexOf(">", index);
+  if (end === -1) return null;
+  if (isClosing) {
+    return { end: end + 1, closing: true, selfClosing: false };
+  }
+  const tagText = text.slice(index, end + 1);
+  const selfClosing = /\/\s*>$/.test(tagText);
+  return { end: end + 1, closing: false, selfClosing };
+}
+
+function findListItemRange(text: string, offset: number): TagRange | null {
+  let idx = Math.min(offset, text.length - 1);
+  while (idx >= 0) {
+    const openIndex = text.lastIndexOf("<", idx);
+    if (openIndex === -1) break;
+    const tag = readListItemTag(text, openIndex);
+    if (tag && !tag.closing) {
+      if (tag.selfClosing) {
+        return { start: openIndex, end: tag.end };
+      }
+      let depth = 1;
+      let scan = tag.end;
+      while (scan < text.length) {
+        const next = text.indexOf("<", scan);
+        if (next === -1) break;
+        const nextTag = readListItemTag(text, next);
+        if (!nextTag) {
+          scan = next + 1;
+          continue;
+        }
+        if (nextTag.closing) {
+          depth -= 1;
+          if (depth === 0) {
+            return { start: openIndex, end: nextTag.end };
+          }
+        } else if (!nextTag.selfClosing) {
+          depth += 1;
+        }
+        scan = nextTag.end;
+      }
+      return null;
+    }
+    idx = openIndex - 1;
+  }
+  return null;
+}
+
+function findFirstChildElementTag(
+  text: string,
+  start: number,
+  end: number
+): TagInfo | null {
+  let idx = text.indexOf("<", start);
+  while (idx !== -1 && idx < end) {
+    if (text.startsWith("<!--", idx)) {
+      const close = text.indexOf("-->", idx + 4);
+      if (close === -1) return null;
+      idx = text.indexOf("<", close + 3);
+      continue;
+    }
+    if (text.startsWith("</", idx)) {
+      idx = text.indexOf("<", idx + 2);
+      continue;
+    }
+    const match = text.slice(idx).match(/^<\s*([A-Za-z][\w:-]*)/);
+    if (!match) {
+      idx = text.indexOf("<", idx + 1);
+      continue;
+    }
+    const tagEnd = text.indexOf(">", idx);
+    if (tagEnd === -1 || tagEnd > end) return null;
+    return {
+      name: match[1].toLowerCase(),
+      rawName: match[1],
+      start: idx,
+      end: tagEnd,
+      text: text.slice(idx, tagEnd + 1),
+    };
   }
   return null;
 }
@@ -599,50 +727,6 @@ function addFormControlQuickFixes(
   const placeholderId = QUICK_FIX_PLACEHOLDER;
   const labelText = suggestLabelText(controlAttrs);
 
-  const setAttributeValue = (
-    edit: vscode.WorkspaceEdit,
-    tag: TagInfo,
-    attrs: ParsedAttr[],
-    attrName: string,
-    value: string,
-    allowReplaceNonMatching: boolean
-  ): boolean => {
-    const attr = findAttribute(attrs, [attrName], caseInsensitive);
-    if (attr) {
-      if (attr.dynamic) return false;
-      const current = (attr.value ?? "").trim();
-      if (current.length > 0 && current !== value && !allowReplaceNonMatching) {
-        return false;
-      }
-      if (attr.valueStart !== null && attr.valueEnd !== null) {
-        if (current === value) return false;
-        const start = getPositionAt(
-          document,
-          tag.start + attr.valueStart,
-          docText
-        );
-        const end = getPositionAt(
-          document,
-          tag.start + attr.valueEnd,
-          docText
-        );
-        edit.replace(document.uri, new vscode.Range(start, end), value);
-        return true;
-      }
-      const nameEnd = getPositionAt(
-        document,
-        tag.start + attr.nameEnd,
-        docText
-      );
-      edit.insert(document.uri, nameEnd, `="${value}"`);
-      return true;
-    }
-    const insertOffset = getTagInsertOffset(docText, tag);
-    const insertPos = getPositionAt(document, insertOffset, docText);
-    edit.insert(document.uri, insertPos, ` ${attrName}="${value}"`);
-    return true;
-  };
-
   const insertLabelBeforeControl = (id: string) => {
     const edit = new vscode.WorkspaceEdit();
     const baseIndent =
@@ -665,11 +749,14 @@ function addFormControlQuickFixes(
   const addAriaLabel = () => {
     const edit = new vscode.WorkspaceEdit();
     const didSet = setAttributeValue(
+      document,
+      docText,
       edit,
       controlTag,
       controlAttrs,
       "aria-label",
       QUICK_FIX_PLACEHOLDER,
+      caseInsensitive,
       true
     );
     if (!didSet) return;
@@ -691,11 +778,14 @@ function addFormControlQuickFixes(
         }
         const edit = new vscode.WorkspaceEdit();
         const didSet = setAttributeValue(
+          document,
+          docText,
           edit,
           labelTag,
           labelAttrs,
           labelAttrName,
           idValue,
+          caseInsensitive,
           false
         );
         if (!didSet) {
@@ -726,16 +816,29 @@ function addFormControlQuickFixes(
     const idToUse = labelAttrValue ?? placeholderId;
     const edit = new vscode.WorkspaceEdit();
     const idSet = setAttributeValue(
+      document,
+      docText,
       edit,
       controlTag,
       controlAttrs,
       "id",
       idToUse,
+      caseInsensitive,
       false
     );
     if (!idSet) return;
     if (!labelAttrValue || labelAttrEmpty) {
-      setAttributeValue(edit, labelTag, labelAttrs, labelAttrName, idToUse, false);
+      setAttributeValue(
+        document,
+        docText,
+        edit,
+        labelTag,
+        labelAttrs,
+        labelAttrName,
+        idToUse,
+        caseInsensitive,
+        false
+      );
     }
     const action = new vscode.CodeAction(
       "Add id and link <label>",
@@ -752,11 +855,14 @@ function addFormControlQuickFixes(
   if (!idAttrDynamic) {
     const edit = new vscode.WorkspaceEdit();
     const idSet = setAttributeValue(
+      document,
+      docText,
       edit,
       controlTag,
       controlAttrs,
       "id",
       placeholderId,
+      caseInsensitive,
       false
     );
     if (!idSet) return;
@@ -795,6 +901,7 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
 
         let startLine = diag.range.start.line;
         let endLine = diag.range.start.line;
+        const startOffset = getOffsetAt(document, diag.range.start, docText);
 
         let jsBlockStart: number | null = null;
         for (let i = startLine; i >= 0; i--) {
@@ -822,24 +929,32 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
             }
           }
         } else {
-          for (let i = startLine - 1; i >= 0; i--) {
-            const trimmed = lineAt(i).trim();
-            if (!trimmed) break;
-            if (trimmed.startsWith("<li") || trimmed.startsWith("</li")) {
-              startLine = i;
-              continue;
+          const liRange = findListItemRange(docText, startOffset);
+          if (liRange) {
+            const startPos = getPositionAt(document, liRange.start, docText);
+            const endPos = getPositionAt(document, liRange.end, docText);
+            startLine = startPos.line;
+            endLine = endPos.line;
+          } else {
+            for (let i = startLine - 1; i >= 0; i--) {
+              const trimmed = lineAt(i).trim();
+              if (!trimmed) break;
+              if (trimmed.startsWith("<li") || trimmed.startsWith("</li")) {
+                startLine = i;
+                continue;
+              }
+              break;
             }
-            break;
-          }
 
-          for (let i = endLine + 1; i < lines.length; i++) {
-            const trimmed = lineAt(i).trim();
-            if (!trimmed) break;
-            if (trimmed.startsWith("<li") || trimmed.startsWith("</li")) {
-              endLine = i;
-              continue;
+            for (let i = endLine + 1; i < lines.length; i++) {
+              const trimmed = lineAt(i).trim();
+              if (!trimmed) break;
+              if (trimmed.startsWith("<li") || trimmed.startsWith("</li")) {
+                endLine = i;
+                continue;
+              }
+              break;
             }
-            break;
           }
         }
 
@@ -1037,41 +1152,89 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
         );
         const tagEnd = docText.indexOf(">", sectionStart);
         if (tagEnd !== -1 && docText[tagEnd - 1] !== "/") {
-          let searchStart = 0;
-          let searchEnd = sectionStart;
-          if (document.languageId === "vue") {
-            const templateRange = getVueTemplateRange(docText);
-            if (templateRange) {
-              if (
-                sectionStart < templateRange.start ||
-                sectionStart > templateRange.end
-              ) {
-                continue;
-              }
-              searchStart = templateRange.start;
-              searchEnd = Math.min(sectionStart, templateRange.end);
-            }
-          }
-
-          const previousLevel = findLastHeadingLevel(
-            docText.slice(searchStart, searchEnd)
-          );
-          const level = chooseSectionHeadingLevel(previousLevel);
-          const line = document.lineAt(diag.range.start.line);
-          const baseIndent = line.text.match(/^\s*/)?.[0] ?? "";
-          const insertText = `\n${baseIndent}${getIndentUnit(
-            document
-          )}<h${level}>New heading</h${level}>`;
+          const ext = path.extname(document.uri.fsPath).toLowerCase();
+          const isJsx = ext === ".jsx" || ext === ".tsx";
+          const caseInsensitive = !isJsx;
+          const sectionTag: TagInfo = {
+            name: "section",
+            start: sectionStart,
+            end: tagEnd,
+            text: docText.slice(sectionStart, tagEnd + 1),
+          };
+          const sectionAttrs = parseTagAttributes(sectionTag.text);
+          const sectionClose = docText.indexOf("</section", tagEnd);
+          const rawChildTag =
+            sectionClose === -1
+              ? null
+              : findFirstChildElementTag(docText, tagEnd + 1, sectionClose);
+          const childTag =
+            rawChildTag && rawChildTag.rawName && /^[A-Z]/.test(rawChildTag.rawName)
+              ? null
+              : rawChildTag;
           const edit = new vscode.WorkspaceEdit();
-          const insertPos = getPositionAt(document, tagEnd + 1, docText);
-          edit.insert(document.uri, insertPos, insertText);
-          const action = new vscode.CodeAction(
-            `Insert <h${level}> heading`,
-            vscode.CodeActionKind.QuickFix
-          );
-          action.diagnostics = [diag];
-          action.edit = edit;
-          actions.push(action);
+
+          if (childTag) {
+            const childAttrs = parseTagAttributes(childTag.text);
+            const idAttr = findAttribute(childAttrs, ["id"], true);
+            const childId =
+              idAttr && !idAttr.dynamic && idAttr.value && idAttr.value.trim()
+                ? idAttr.value.trim()
+                : null;
+            const labelId = childId ?? QUICK_FIX_PLACEHOLDER;
+            const didSetSection = setAttributeValue(
+              document,
+              docText,
+              edit,
+              sectionTag,
+              sectionAttrs,
+              "aria-labelledby",
+              labelId,
+              caseInsensitive,
+              false
+            );
+            if (!didSetSection) continue;
+            if (!childId) {
+              const didSetChild = setAttributeValue(
+                document,
+                docText,
+                edit,
+                childTag,
+                childAttrs,
+                "id",
+                labelId,
+                caseInsensitive,
+                false
+              );
+              if (!didSetChild) continue;
+            }
+            const action = new vscode.CodeAction(
+              `Add aria-labelledby="${labelId}"`,
+              vscode.CodeActionKind.QuickFix
+            );
+            action.diagnostics = [diag];
+            action.edit = edit;
+            actions.push(action);
+          } else {
+            const didSet = setAttributeValue(
+              document,
+              docText,
+              edit,
+              sectionTag,
+              sectionAttrs,
+              "aria-label",
+              QUICK_FIX_PLACEHOLDER,
+              caseInsensitive,
+              false
+            );
+            if (!didSet) continue;
+            const action = new vscode.CodeAction(
+              `Add aria-label="${QUICK_FIX_PLACEHOLDER}"`,
+              vscode.CodeActionKind.QuickFix
+            );
+            action.diagnostics = [diag];
+            action.edit = edit;
+            actions.push(action);
+          }
         }
       }
 
@@ -1361,6 +1524,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Remap cross-component results deterministically
     const remapped = new Map<string, LintResult[]>();
+    for (const fp of files) remapped.set(fp, []);
     for (const [fp, results] of map.entries()) {
       for (const r of results) {
         let target = r.filePath ?? fp;
@@ -1383,7 +1547,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
     }
 
-    // Dedupe + stable order per file
+    // Dedupe + stable order per file (preserve empty entries for clearing diagnostics)
     const out = new Map<string, LintResult[]>();
     for (const [fp, results] of remapped.entries()) {
       const seen = new Set<string>();
