@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.0.13
+
 ### Feature
 
 - Feature: add quick fix for missing section headings (ZMD001) with safe heading level selection
