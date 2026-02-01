@@ -86,7 +86,7 @@
         "zemdomu.rules.requireAltText": {
           "type": "boolean",
           "default": true,
-          "description": "Warn when an <img> tag is missing a non-empty alt attribute."
+          "description": "Warn when an <img> tag is missing alt text or an inline SVG used as an image/control lacks an accessible name."
         },
         "zemdomu.rules.requireLabelForFormControls": {
           "type": "boolean",

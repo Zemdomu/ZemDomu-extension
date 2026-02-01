@@ -18,6 +18,7 @@
 
 - Docs: update requireLinkText setting description to reference accessible names
 - Docs: clarify requireHtmlLang setting now validates language tags
+- Docs: update requireAltText setting description to include SVG icons
 
 ## 0.0.13
 
