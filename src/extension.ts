@@ -321,6 +321,75 @@ function extractTagName(lineText: string, startChar: number): string | null {
   return match ? match[1] : null;
 }
 
+function findTagEnd(text: string, start: number): number | null {
+  if (text[start] !== "<") return null;
+  let inSingle = false;
+  let inDouble = false;
+  let inBacktick = false;
+  let braceDepth = 0;
+  let escape = false;
+
+  for (let i = start + 1; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+
+    if (inSingle) {
+      if (ch === "\\") {
+        escape = true;
+        continue;
+      }
+      if (ch === "'") inSingle = false;
+      continue;
+    }
+    if (inDouble) {
+      if (ch === "\\") {
+        escape = true;
+        continue;
+      }
+      if (ch === "\"") inDouble = false;
+      continue;
+    }
+    if (inBacktick) {
+      if (ch === "\\") {
+        escape = true;
+        continue;
+      }
+      if (ch === "`") {
+        inBacktick = false;
+        continue;
+      }
+      continue;
+    }
+
+    if (ch === "'") {
+      inSingle = true;
+      continue;
+    }
+    if (ch === "\"") {
+      inDouble = true;
+      continue;
+    }
+    if (ch === "`") {
+      inBacktick = true;
+      continue;
+    }
+    if (ch === "{") {
+      braceDepth += 1;
+      continue;
+    }
+    if (ch === "}") {
+      if (braceDepth > 0) braceDepth -= 1;
+      continue;
+    }
+    if (ch === ">" && braceDepth === 0) return i;
+  }
+
+  return null;
+}
+
 function findTabindexValueRange(
   lineText: string,
   lineNumber: number
@@ -399,8 +468,8 @@ function findFormControlTag(text: string, offset: number): TagInfo | null {
     if (!match) return null;
     const name = match[1].toLowerCase();
     if (!FORM_CONTROL_TAGS.has(name)) return null;
-    const end = text.indexOf(">", idx);
-    if (end === -1) return null;
+    const end = findTagEnd(text, idx);
+    if (end === null) return null;
     return { name, start: idx, end, text: text.slice(idx, end + 1) };
   };
 
@@ -410,20 +479,21 @@ function findFormControlTag(text: string, offset: number): TagInfo | null {
     if (tag) return tag;
   }
 
-  const forward = text.slice(offset).match(/<\s*(input|select|textarea)\b[^>]*>/i);
-  if (forward && forward.index !== undefined) {
-    const start = offset + forward.index;
-    const end = start + forward[0].length - 1;
-    return { name: forward[1].toLowerCase(), start, end, text: forward[0] };
+  let next = text.indexOf("<", offset);
+  while (next !== -1) {
+    const tag = matchTagAt(next);
+    if (tag) return tag;
+    next = text.indexOf("<", next + 1);
   }
   return null;
 }
 
 function parseTagAttributes(tagText: string): ParsedAttr[] {
-  const tagMatch = tagText.match(/^<\s*([A-Za-z][\w:-]*)\b([^>]*)>/);
+  const tagMatch = tagText.match(/^<\s*([A-Za-z][\w:-]*)\b/);
   if (!tagMatch) return [];
-  const attrPart = tagMatch[2] ?? "";
-  const attrOffset = tagMatch[0].indexOf(attrPart);
+  const attrOffset = tagMatch[0].length;
+  let attrPart = tagText.slice(attrOffset, Math.max(attrOffset, tagText.length - 1));
+  attrPart = attrPart.replace(/\/\s*$/, "");
   const attrs: ParsedAttr[] = [];
   const attrRegex =
     /([A-Za-z_:][\w:.-]*)(?:\s*=\s*(\"[^\"]*\"|'[^']*'|\{[^}]*\}|[^\s>]+))?/g;
@@ -564,8 +634,8 @@ function findNearbyLabelTag(
     const idx = slice.lastIndexOf("<label");
     if (idx === -1) continue;
     const absStart = lineStarts[line] + idx;
-    const end = text.indexOf(">", absStart);
-    if (end === -1) return null;
+    const end = findTagEnd(text, absStart);
+    if (end === null) return null;
     return { name: "label", start: absStart, end, text: text.slice(absStart, end + 1) };
   }
   return null;
@@ -581,8 +651,8 @@ function readListItemTag(text: string, index: number): { end: number; closing: b
   if (!isClosing && !isOpening) return null;
   const nextChar = text[index + (isClosing ? 4 : 3)];
   if (nextChar && !/[\s/>]/.test(nextChar)) return null;
-  const end = text.indexOf(">", index);
-  if (end === -1) return null;
+  const end = findTagEnd(text, index);
+  if (end === null) return null;
   if (isClosing) {
     return { end: end + 1, closing: true, selfClosing: false };
   }
@@ -650,8 +720,8 @@ function findFirstChildElementTag(
       idx = text.indexOf("<", idx + 1);
       continue;
     }
-    const tagEnd = text.indexOf(">", idx);
-    if (tagEnd === -1 || tagEnd > end) return null;
+    const tagEnd = findTagEnd(text, idx);
+    if (tagEnd === null || tagEnd > end) return null;
     return {
       name: match[1].toLowerCase(),
       rawName: match[1],
@@ -983,10 +1053,12 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
       if (isNavLinksDiagnostic(diag)) {
         const line = document.lineAt(diag.range.start.line);
         const lineText = line.text;
-        const gt = lineText.indexOf(">", diag.range.start.character);
-        if (gt !== -1 && lineText[gt - 1] !== "/") {
+        const docText = document.getText();
+        const startOffset = getOffsetAt(document, diag.range.start, docText);
+        const tagEnd = findTagEnd(docText, startOffset);
+        if (tagEnd !== null && docText[tagEnd - 1] !== "/") {
           const baseIndent = lineText.match(/^\s*/)?.[0] ?? "";
-          const insertPos = new vscode.Position(diag.range.start.line, gt + 1);
+          const insertPos = getPositionAt(document, tagEnd + 1, docText);
           const edit = new vscode.WorkspaceEdit();
           edit.insert(
             document.uri,
@@ -1150,8 +1222,8 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
           diag.range.start,
           docText
         );
-        const tagEnd = docText.indexOf(">", sectionStart);
-        if (tagEnd !== -1 && docText[tagEnd - 1] !== "/") {
+        const tagEnd = findTagEnd(docText, sectionStart);
+        if (tagEnd !== null && docText[tagEnd - 1] !== "/") {
           const ext = path.extname(document.uri.fsPath).toLowerCase();
           const isJsx = ext === ".jsx" || ext === ".tsx";
           const caseInsensitive = !isJsx;
@@ -1242,14 +1314,14 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
 
       const line = document.lineAt(diag.range.start.line);
       const lineText = line.text;
-      const gt = lineText.indexOf(">", diag.range.start.character);
-      if (gt === -1) continue;
+      const docText = document.getText();
+      const startOffset = getOffsetAt(document, diag.range.start, docText);
+      const tagEnd = findTagEnd(docText, startOffset);
+      if (tagEnd === null) continue;
 
       const tagName = extractTagName(lineText, diag.range.start.character);
-      const insertPos = new vscode.Position(
-        diag.range.start.line,
-        lineText[gt - 1] === "/" ? gt - 1 : gt
-      );
+      const insertOffset = docText[tagEnd - 1] === "/" ? tagEnd - 1 : tagEnd;
+      const insertPos = getPositionAt(document, insertOffset, docText);
 
       const addAttr = (
         title: string,
@@ -1297,7 +1369,7 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
         }
       }
       if (diag.message.includes("missing <caption>")) {
-        const capPos = new vscode.Position(diag.range.start.line, gt + 1);
+        const capPos = new vscode.Position(diag.range.start.line, tagEnd + 1);
         const edit = new vscode.WorkspaceEdit();
         edit.insert(
           document.uri,
@@ -1331,6 +1403,7 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
         `aria-label="${QUICK_FIX_PLACEHOLDER}"`,
         (m) =>
           m.includes("accessible text") ||
+          m.includes("accessible name") ||
           m.includes("aria-label attribute is empty")
       );
       addAttr(

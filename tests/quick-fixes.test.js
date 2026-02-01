@@ -23,6 +23,19 @@ function positionAt(text, index) {
   };
 }
 
+function offsetAt(text, pos) {
+  const newline = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  let offset = 0;
+  for (let i = 0; i < pos.line && i < lines.length; i++) {
+    offset += lines[i].length + newline.length;
+  }
+  if (pos.line < lines.length) {
+    offset += Math.min(pos.character, lines[pos.line].length);
+  }
+  return offset;
+}
+
 function findPosition(text, needle, fromIndex = 0) {
   const idx = text.indexOf(needle, fromIndex);
   assert.ok(idx >= 0, `Expected to find "${needle}" in document`);
@@ -213,6 +226,30 @@ function makeDiagnostic(doc, message, needle) {
       assert.ok(insert.value.includes('htmlFor="email"'));
     }
 
+    // ZMD005 - requireLabelForFormControls (JSX arrow attributes)
+    {
+      const content = '<input type="number" onChange={(e) => setPrice(e.target.value)} />';
+      const { doc } = await openDoc(tmpDir, 'form-label-jsx-arrow', '.jsx', content);
+      const diag = makeDiagnostic(
+        doc,
+        'Form control missing id or aria-label',
+        '<input'
+      );
+      const action = getAction(provider, doc, diag, 'Add <label> and id');
+      const idInsert = action.edit.operations.find(
+        op => op.type === 'insert' && op.value.includes('id="TODO-ZMD"')
+      );
+      assert.ok(idInsert, 'Expected id insert for JSX arrow case');
+      const insertOffset = offsetAt(content, idInsert.position);
+      const exprEnd = content.lastIndexOf(')}');
+      assert.ok(exprEnd !== -1, 'Expected to find end of onChange expression');
+      const exprClose = exprEnd + 1;
+      assert.ok(
+        insertOffset > exprClose,
+        'Expected id insert after JSX expression end'
+      );
+    }
+
     // ZMD006 - enforceListNesting (plain list)
     {
       const content = '<li>First</li>\n<li>Second</li>';
@@ -258,6 +295,20 @@ function makeDiagnostic(doc, message, needle) {
       assert.ok(inserts.some(op => op.position.line === 0 && op.value.includes('<ul>')));
       assert.ok(closeInsert, 'Expected closing </ul> insert');
       assert.strictEqual(closeInsert.position.line, 2);
+    }
+
+    // ZMD007 - requireLinkText
+    {
+      const content = '<a href="/home"></a>';
+      const { doc } = await openDoc(tmpDir, 'link-text', '.html', content);
+      const diag = makeDiagnostic(
+        doc,
+        '<a> missing accessible name',
+        '<a'
+      );
+      const action = getAction(provider, doc, diag, 'Add aria-label="TODO-ZMD"');
+      const insert = action.edit.operations.find(op => op.type === 'insert');
+      assert.ok(insert.value.includes('aria-label="TODO-ZMD"'));
     }
 
     // ZMD008 - requireTableCaption

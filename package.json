@@ -101,7 +101,7 @@
         "zemdomu.rules.requireLinkText": {
           "type": "boolean",
           "default": true,
-          "description": "Warn when an <a> tag doesn't contain any text content."
+          "description": "Warn when an <a> tag lacks an accessible name (text, aria-label/aria-labelledby, or labeled content)."
         },
         "zemdomu.rules.requireTableCaption": {
           "type": "boolean",
@@ -131,7 +131,7 @@
         "zemdomu.rules.requireHtmlLang": {
           "type": "boolean",
           "default": true,
-          "description": "Warn when the <html> tag lacks a lang attribute."
+          "description": "Warn when the <html> tag lacks a valid lang attribute."
         },
         "zemdomu.rules.requireImageInputAlt": {
           "type": "boolean",
@@ -315,6 +315,7 @@
     "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --minify --external:vscode --outfile=dist/extension.js",
     "package": "vsce package --out dist/zemdomu.vsix",
     "test": "npm run compile && npm run bundle && node tests/inline-disable.test.js && node tests/linter-labels.test.js && node tests/unique-ids.test.js && node tests/cross-component-extension.test.js && node tests/extension-cross-component.test.js && node tests/vue-extension.test.js && node tests/quick-fixes.test.js && node tests/package-size.test.js",
+    "posttest": "node -e \"const fs=require('fs');fs.rmSync('out',{recursive:true,force:true});fs.rmSync('dist',{recursive:true,force:true});\"",
     "publish-all": "npm install && npm run compile && npm run bundle && npm run package"
   },
   "devDependencies": {

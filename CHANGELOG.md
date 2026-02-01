@@ -1,5 +1,24 @@
 ## Unreleased
 
+### Bugfix
+
+- Bugfix: avoid inserting form control quick fix attributes inside JSX arrow expressions
+- Bugfix: fix <caption> quick fix insertion offset to use the table tag end
+
+### Feature
+
+- Feature: add quick fix for links missing accessible names (ZMD007)
+
+### Chore
+
+- Chore: add quick fix coverage for requireLinkText
+- Chore: clean out/dist build artifacts after tests
+
+### Docs
+
+- Docs: update requireLinkText setting description to reference accessible names
+- Docs: clarify requireHtmlLang setting now validates language tags
+
 ## 0.0.13
 
 ### Feature
