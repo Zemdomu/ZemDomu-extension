@@ -9,6 +9,10 @@
 
 - Feature: add quick fix for links missing accessible names (ZMD007)
 
+### Security
+
+- Security: override @isaacs/brace-expansion to 5.0.1 to address the dependabot alert.
+
 ### Chore
 
 - Chore: add quick fix coverage for requireLinkText
