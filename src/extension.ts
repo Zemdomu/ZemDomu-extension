@@ -315,6 +315,15 @@ function isTabindexDiagnostic(diag: vscode.Diagnostic): boolean {
   return diag.message.includes("Tabindex greater than 0 should be avoided");
 }
 
+function isLinkTextDiagnostic(diag: vscode.Diagnostic): boolean {
+  const code = diagnosticCodeValue(diag.code);
+  if (code === "ZMD007" || code === "requireLinkText") return true;
+  return (
+    diag.message.includes("missing accessible name") ||
+    diag.message.includes("missing link text")
+  );
+}
+
 function extractTagName(lineText: string, startChar: number): string | null {
   const slice = lineText.slice(startChar);
   const match = slice.match(/<\s*([A-Za-z][\w:-]*)/);
@@ -1322,6 +1331,7 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
       const tagName = extractTagName(lineText, diag.range.start.character);
       const insertOffset = docText[tagEnd - 1] === "/" ? tagEnd - 1 : tagEnd;
       const insertPos = getPositionAt(document, insertOffset, docText);
+      const linkTextDiag = isLinkTextDiagnostic(diag);
 
       const addAttr = (
         title: string,
@@ -1402,6 +1412,7 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
         `Add aria-label="${QUICK_FIX_PLACEHOLDER}"`,
         `aria-label="${QUICK_FIX_PLACEHOLDER}"`,
         (m) =>
+          linkTextDiag ||
           m.includes("accessible text") ||
           m.includes("accessible name") ||
           m.includes("aria-label attribute is empty")

@@ -1,0 +1,53 @@
+{
+  "cases": [
+    {
+      "name": "section heading quick fix reuses child id",
+      "fileName": "section-heading.html",
+      "source": "<section>\n  <p id=\"overview\">Overview</p>\n</section>",
+      "expectRules": ["requireSectionHeading"],
+      "quickFixes": [
+        {
+          "rule": "requireSectionHeading",
+          "title": "Add aria-labelledby=\"overview\"",
+          "anchor": "<section>",
+          "expected": "<section aria-labelledby=\"overview\">\n  <p id=\"overview\">Overview</p>\n</section>"
+        }
+      ]
+    },
+    {
+      "name": "link text quick fix adds aria-label",
+      "fileName": "link-text.html",
+      "source": "<a href=\"/home\"></a>",
+      "expectRules": ["requireLinkText"],
+      "quickFixes": [
+        {
+          "rule": "requireLinkText",
+          "title": "Add aria-label=\"TODO-ZMD\"",
+          "anchor": "<a",
+          "expected": "<a href=\"/home\" aria-label=\"TODO-ZMD\"></a>"
+        }
+      ]
+    },
+    {
+      "name": "tabindex quick fix rewrites value",
+      "fileName": "tabindex.html",
+      "source": "<div tabindex=\"2\"></div>",
+      "expectRules": ["noTabindexGreaterThanZero"],
+      "quickFixes": [
+        {
+          "rule": "noTabindexGreaterThanZero",
+          "title": "Set tabindex to \"-1\"",
+          "anchor": "<div",
+          "expected": "<div tabindex=\"-1\"></div>"
+        }
+      ]
+    },
+    {
+      "name": "TODO placeholder rule is reported",
+      "fileName": "placeholder.html",
+      "source": "<p>TODO-ZMD</p>",
+      "expectRules": ["preventZemdomuPlaceholders"],
+      "expectedDiagnosticCount": 1
+    }
+  ]
+}
