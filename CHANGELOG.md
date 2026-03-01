@@ -4,19 +4,23 @@
 
 - Bugfix: avoid inserting form control quick fix attributes inside JSX arrow expressions
 - Bugfix: fix <caption> quick fix insertion offset to use the table tag end
+- Bugfix: recognize `requireLinkText` diagnostics by rule/code so the aria-label quick fix still appears when core message wording changes
 
 ### Feature
 
 - Feature: add quick fix for links missing accessible names (ZMD007)
+- Feature: add npm funding metadata linking to Buy Me a Coffee for `npm fund`
 
 ### Security
 
 - Security: override @isaacs/brace-expansion to 5.0.1 to address the dependabot alert.
+- Security: add dependency overrides for ajv, markdown-it, minimatch, qs, and undici to resolve dependabot vulnerability alerts without changing extension behavior.
 
 ### Chore
 
 - Chore: add quick fix coverage for requireLinkText
 - Chore: clean out/dist build artifacts after tests
+- Chore: add fixture-driven behavior tests that validate core rule hits and extension quick-fix output from JSON test files
 
 ### Docs
 
