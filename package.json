@@ -11,7 +11,7 @@
     "url": "https://github.com/Zemdomu/ZemDomu-extension/issues"
   },
   "funding": "https://buymeacoffee.com/zemdomu",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "engines": {
     "vscode": "^1.105.0"
   },
@@ -153,6 +153,21 @@
           "type": "boolean",
           "default": true,
           "description": "Warn when TODO-ZMD placeholders remain in markup."
+        },
+        "zemdomu.rules.requireDocumentTitle": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when an <html> document is missing a non-empty <title>."
+        },
+        "zemdomu.rules.requireSingleMain": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when an <html> document has zero or multiple <main> landmarks."
+        },
+        "zemdomu.rules.ariaValidAttrValue": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when supported ARIA attributes use invalid static values."
         },
         "zemdomu.severity.requireSectionHeading": {
           "type": "string",
@@ -306,6 +321,33 @@
           ],
           "default": "warning",
           "description": "Severity for the preventZemdomuPlaceholders rule."
+        },
+        "zemdomu.severity.requireDocumentTitle": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the requireDocumentTitle rule."
+        },
+        "zemdomu.severity.requireSingleMain": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the requireSingleMain rule."
+        },
+        "zemdomu.severity.ariaValidAttrValue": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the ariaValidAttrValue rule."
         }
       }
     }

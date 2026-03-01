@@ -17,6 +17,16 @@ inline diagnostics so you can catch structural problems early.
 - Quick fixes for common missing attributes.
 - Optional verbose logging and performance diagnostics.
 
+## Why ZemDomu vs alternatives
+
+Compared with generic editor linting and post-deploy scanners, ZemDomu aims to
+give faster and more actionable semantic feedback while you code:
+
+- Focused semantic diagnostics for HTML structure, accessible names, and landmarks.
+- Consistent rule behavior with the ZemDomu CLI and GitHub Action.
+- Cross-component analysis to surface issues hidden behind imports.
+- Built-in quick fixes for common remediation paths.
+
 ## Quick start
 
 1. Install from the VS Code Marketplace or search for "ZemDomu" in Extensions.

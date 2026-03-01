@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.0.14
+
 ### Bugfix
 
 - Bugfix: avoid inserting form control quick fix attributes inside JSX arrow expressions
@@ -8,6 +10,8 @@
 
 ### Feature
 
+- Feature: add quick fixes for `requireDocumentTitle` (ZMD019), `requireSingleMain` (ZMD020), and `ariaValidAttrValue` (ZMD021).
+- Feature: add extension rule/severity settings for `requireDocumentTitle`, `requireSingleMain`, and `ariaValidAttrValue`.
 - Feature: add quick fix for links missing accessible names (ZMD007)
 - Feature: add npm funding metadata linking to Buy Me a Coffee for `npm fund`
 
@@ -24,6 +28,7 @@
 
 ### Docs
 
+- Docs: add a "Why ZemDomu vs alternatives" section to the extension README.
 - Docs: update requireLinkText setting description to reference accessible names
 - Docs: clarify requireHtmlLang setting now validates language tags
 - Docs: update requireAltText setting description to include SVG icons

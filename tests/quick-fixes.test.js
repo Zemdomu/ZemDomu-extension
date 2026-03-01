@@ -441,6 +441,77 @@ function makeDiagnostic(doc, message, needle) {
       assert.strictEqual(replaceMinus.value, '-1');
     }
 
+    // ZMD019 - requireDocumentTitle (missing title)
+    {
+      const content = '<html><head></head><body><main>Body</main></body></html>';
+      const { doc } = await openDoc(tmpDir, 'doc-title-missing', '.html', content);
+      const diag = makeDiagnostic(
+        doc,
+        'Document missing non-empty <title> in <head>',
+        '<html>'
+      );
+      const action = getAction(provider, doc, diag, 'Add <title>TODO-ZMD</title>');
+      const insert = action.edit.operations.find(op => op.type === 'insert');
+      assert.ok(insert.value.includes('<title>TODO-ZMD</title>'));
+    }
+
+    // ZMD019 - requireDocumentTitle (empty title)
+    {
+      const content = '<html><head><title> </title></head><body><main>Body</main></body></html>';
+      const { doc } = await openDoc(tmpDir, 'doc-title-empty', '.html', content);
+      const diag = makeDiagnostic(
+        doc,
+        '<title> element must not be empty',
+        '<title>'
+      );
+      const action = getAction(provider, doc, diag, 'Fill <title> with "TODO-ZMD"');
+      const replace = action.edit.operations.find(op => op.type === 'replace');
+      assert.strictEqual(replace.value, 'TODO-ZMD');
+    }
+
+    // ZMD020 - requireSingleMain (missing main)
+    {
+      const content = '<html><head><title>Page</title></head><body><section>Body</section></body></html>';
+      const { doc } = await openDoc(tmpDir, 'single-main-missing', '.html', content);
+      const diag = makeDiagnostic(
+        doc,
+        'Document missing <main> landmark',
+        '<body>'
+      );
+      const action = getAction(provider, doc, diag, 'Add <main>TODO-ZMD</main>');
+      const insert = action.edit.operations.find(op => op.type === 'insert');
+      assert.ok(insert.value.includes('<main>TODO-ZMD</main>'));
+    }
+
+    // ZMD020 - requireSingleMain (duplicate main)
+    {
+      const content = '<html><head><title>Page</title></head><body><main>One</main><main>Two</main></body></html>';
+      const { doc } = await openDoc(tmpDir, 'single-main-duplicate', '.html', content);
+      const diag = makeDiagnostic(
+        doc,
+        'Only one <main> landmark allowed per document',
+        '<main>Two'
+      );
+      const action = getAction(provider, doc, diag, 'Change duplicate <main> to <section>');
+      const replaces = action.edit.operations.filter(op => op.type === 'replace');
+      assert.ok(replaces.length >= 2, 'Expected opening and closing tag replacements');
+      replaces.forEach(op => assert.strictEqual(op.value, 'section'));
+    }
+
+    // ZMD021 - ariaValidAttrValue
+    {
+      const content = '<div aria-hidden="maybe"></div>';
+      const { doc } = await openDoc(tmpDir, 'aria-value', '.html', content);
+      const diag = makeDiagnostic(
+        doc,
+        'ARIA attribute "aria-hidden" has invalid value "maybe"',
+        'aria-hidden='
+      );
+      const action = getAction(provider, doc, diag, 'Set aria-hidden="false"');
+      const replace = action.edit.operations.find(op => op.type === 'replace');
+      assert.strictEqual(replace.value, 'false');
+    }
+
     console.log('Quick fix tests passed');
   } catch (error) {
     console.error('Quick fix tests failed');

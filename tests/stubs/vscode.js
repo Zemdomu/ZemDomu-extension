@@ -244,6 +244,9 @@ function primeConfigDefaults() {
     'requireNavLinks',
     'uniqueIds',
     'preventZemdomuPlaceholders',
+    'requireDocumentTitle',
+    'requireSingleMain',
+    'ariaValidAttrValue',
   ];
   for (const rule of rules) {
     configValues.set(`rules.${rule}`, true);

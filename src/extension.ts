@@ -41,6 +41,9 @@ const RULE_NAMES = [
   "requireNavLinks",
   "uniqueIds",
   "preventZemdomuPlaceholders",
+  "requireDocumentTitle",
+  "requireSingleMain",
+  "ariaValidAttrValue",
 ] as const;
 
 const DOCS_RULES = new Set<string>(RULE_NAMES);
@@ -324,6 +327,95 @@ function isLinkTextDiagnostic(diag: vscode.Diagnostic): boolean {
   );
 }
 
+function isDocumentTitleDiagnostic(diag: vscode.Diagnostic): boolean {
+  const code = diagnosticCodeValue(diag.code);
+  if (code === "ZMD019" || code === "requireDocumentTitle") return true;
+  return diag.message.includes("<title>");
+}
+
+function isSingleMainDiagnostic(diag: vscode.Diagnostic): boolean {
+  const code = diagnosticCodeValue(diag.code);
+  if (code === "ZMD020" || code === "requireSingleMain") return true;
+  return diag.message.includes("<main>");
+}
+
+function isAriaValidAttrValueDiagnostic(diag: vscode.Diagnostic): boolean {
+  const code = diagnosticCodeValue(diag.code);
+  if (code === "ZMD021" || code === "ariaValidAttrValue") return true;
+  return diag.message.startsWith("ARIA attribute ");
+}
+
+function parseInvalidAriaValueMessage(
+  message: string
+): { attr: string } | null {
+  const match = message.match(/^ARIA attribute "([^"]+)" has invalid value "[\s\S]*"$/);
+  if (!match) return null;
+  return { attr: match[1].toLowerCase() };
+}
+
+function getAriaQuickFixValue(attr: string): string {
+  const BOOLEAN_DEFAULTS = new Set([
+    "aria-hidden",
+    "aria-expanded",
+    "aria-selected",
+    "aria-disabled",
+    "aria-required",
+    "aria-modal",
+    "aria-multiline",
+    "aria-multiselectable",
+    "aria-readonly",
+    "aria-busy",
+    "aria-atomic",
+  ]);
+  const TRISTATE_DEFAULTS = new Set(["aria-checked", "aria-pressed"]);
+  const NUMERIC_DEFAULTS = new Set([
+    "aria-level",
+    "aria-valuemin",
+    "aria-valuemax",
+    "aria-valuenow",
+    "aria-colindex",
+    "aria-rowindex",
+    "aria-colcount",
+    "aria-rowcount",
+    "aria-setsize",
+    "aria-posinset",
+  ]);
+  const IDREF_LIST_DEFAULTS = new Set([
+    "aria-labelledby",
+    "aria-describedby",
+    "aria-controls",
+    "aria-owns",
+    "aria-details",
+    "aria-errormessage",
+    "aria-flowto",
+  ]);
+  if (BOOLEAN_DEFAULTS.has(attr)) return "false";
+  if (TRISTATE_DEFAULTS.has(attr)) return "false";
+  if (NUMERIC_DEFAULTS.has(attr)) return "1";
+  if (IDREF_LIST_DEFAULTS.has(attr)) return QUICK_FIX_PLACEHOLDER;
+
+  switch (attr) {
+    case "aria-current":
+      return "page";
+    case "aria-live":
+      return "polite";
+    case "aria-sort":
+      return "ascending";
+    case "aria-orientation":
+      return "vertical";
+    case "aria-haspopup":
+      return "dialog";
+    case "aria-autocomplete":
+      return "list";
+    case "aria-invalid":
+      return "true";
+    case "aria-relevant":
+      return "additions";
+    default:
+      return "false";
+  }
+}
+
 function extractTagName(lineText: string, startChar: number): string | null {
   const slice = lineText.slice(startChar);
   const match = slice.match(/<\s*([A-Za-z][\w:-]*)/);
@@ -493,6 +585,25 @@ function findFormControlTag(text: string, offset: number): TagInfo | null {
     const tag = matchTagAt(next);
     if (tag) return tag;
     next = text.indexOf("<", next + 1);
+  }
+  return null;
+}
+
+function findEnclosingTag(text: string, offset: number): TagInfo | null {
+  for (let i = Math.min(offset, text.length - 1); i >= 0; i--) {
+    if (text[i] !== "<") continue;
+    if (text.startsWith("</", i) || text.startsWith("<!--", i)) continue;
+    const match = text.slice(i).match(/^<\s*([A-Za-z][\w:-]*)/);
+    if (!match) continue;
+    const end = findTagEnd(text, i);
+    if (end === null || end < offset) continue;
+    return {
+      name: match[1].toLowerCase(),
+      rawName: match[1],
+      start: i,
+      end,
+      text: text.slice(i, end + 1),
+    };
   }
   return null;
 }
@@ -1111,6 +1222,212 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
           actionMinus.diagnostics = [diag];
           actionMinus.edit = editMinus;
           actions.push(actionMinus);
+        }
+      }
+
+      if (isDocumentTitleDiagnostic(diag)) {
+        const docText = document.getText();
+        if (diag.message.includes("missing non-empty <title>")) {
+          const headMatch = /<head\b[^>]*>/i.exec(docText);
+          if (headMatch) {
+            const headStart = headMatch.index;
+            const headEnd = findTagEnd(docText, headStart);
+            if (headEnd !== null && docText[headEnd - 1] !== "/") {
+              const headLine = getPositionAt(document, headStart, docText).line;
+              const baseIndent =
+                document.lineAt(headLine).text.match(/^\s*/)?.[0] ?? "";
+              const insertPos = getPositionAt(document, headEnd + 1, docText);
+              const edit = new vscode.WorkspaceEdit();
+              edit.insert(
+                document.uri,
+                insertPos,
+                `\n${baseIndent}${getIndentUnit(document)}<title>${QUICK_FIX_PLACEHOLDER}</title>`
+              );
+              const action = new vscode.CodeAction(
+                `Add <title>${QUICK_FIX_PLACEHOLDER}</title>`,
+                vscode.CodeActionKind.QuickFix
+              );
+              action.diagnostics = [diag];
+              action.edit = edit;
+              actions.push(action);
+            }
+          } else {
+            const htmlMatch = /<html\b[^>]*>/i.exec(docText);
+            if (htmlMatch) {
+              const htmlStart = htmlMatch.index;
+              const htmlEnd = findTagEnd(docText, htmlStart);
+              if (htmlEnd !== null && docText[htmlEnd - 1] !== "/") {
+                const htmlLine = getPositionAt(document, htmlStart, docText).line;
+                const baseIndent =
+                  document.lineAt(htmlLine).text.match(/^\s*/)?.[0] ?? "";
+                const indent = getIndentUnit(document);
+                const insertPos = getPositionAt(document, htmlEnd + 1, docText);
+                const edit = new vscode.WorkspaceEdit();
+                edit.insert(
+                  document.uri,
+                  insertPos,
+                  `\n${baseIndent}${indent}<head>\n${baseIndent}${indent}${indent}<title>${QUICK_FIX_PLACEHOLDER}</title>\n${baseIndent}${indent}</head>`
+                );
+                const action = new vscode.CodeAction(
+                  `Add <head> and <title>${QUICK_FIX_PLACEHOLDER}</title>`,
+                  vscode.CodeActionKind.QuickFix
+                );
+                action.diagnostics = [diag];
+                action.edit = edit;
+                actions.push(action);
+              }
+            }
+          }
+        }
+
+        if (diag.message.includes("<title> element must not be empty")) {
+          const startOffset = getOffsetAt(document, diag.range.start, docText);
+          const openRegex = /<title\b[^>]*>/gi;
+          openRegex.lastIndex = startOffset;
+          let openMatch = openRegex.exec(docText);
+          if (!openMatch) {
+            openRegex.lastIndex = 0;
+            openMatch = openRegex.exec(docText);
+          }
+          if (openMatch) {
+            const openEnd = openMatch.index + openMatch[0].length;
+            const closeStart = docText.indexOf("</title>", openEnd);
+            if (closeStart !== -1) {
+              const edit = new vscode.WorkspaceEdit();
+              edit.replace(
+                document.uri,
+                new vscode.Range(
+                  getPositionAt(document, openEnd, docText),
+                  getPositionAt(document, closeStart, docText)
+                ),
+                QUICK_FIX_PLACEHOLDER
+              );
+              const action = new vscode.CodeAction(
+                `Fill <title> with "${QUICK_FIX_PLACEHOLDER}"`,
+                vscode.CodeActionKind.QuickFix
+              );
+              action.diagnostics = [diag];
+              action.edit = edit;
+              actions.push(action);
+            }
+          }
+        }
+      }
+
+      if (isSingleMainDiagnostic(diag)) {
+        const docText = document.getText();
+
+        if (diag.message.includes("Document missing <main> landmark")) {
+          const bodyMatch = /<body\b[^>]*>/i.exec(docText);
+          if (bodyMatch) {
+            const bodyStart = bodyMatch.index;
+            const bodyEnd = findTagEnd(docText, bodyStart);
+            if (bodyEnd !== null && docText[bodyEnd - 1] !== "/") {
+              const bodyLine = getPositionAt(document, bodyStart, docText).line;
+              const baseIndent =
+                document.lineAt(bodyLine).text.match(/^\s*/)?.[0] ?? "";
+              const insertPos = getPositionAt(document, bodyEnd + 1, docText);
+              const edit = new vscode.WorkspaceEdit();
+              edit.insert(
+                document.uri,
+                insertPos,
+                `\n${baseIndent}${getIndentUnit(document)}<main>${QUICK_FIX_PLACEHOLDER}</main>`
+              );
+              const action = new vscode.CodeAction(
+                `Add <main>${QUICK_FIX_PLACEHOLDER}</main>`,
+                vscode.CodeActionKind.QuickFix
+              );
+              action.diagnostics = [diag];
+              action.edit = edit;
+              actions.push(action);
+            }
+          }
+        }
+
+        if (diag.message.includes("Only one <main>")) {
+          const startOffset = getOffsetAt(document, diag.range.start, docText);
+          const openRegex = /<main\b[^>]*>/gi;
+          openRegex.lastIndex = startOffset;
+          let openMatch = openRegex.exec(docText);
+          if (!openMatch) {
+            openRegex.lastIndex = 0;
+            openMatch = openRegex.exec(docText);
+          }
+          if (openMatch) {
+            const openStart = openMatch.index;
+            const openNameStart = openStart + 1;
+            const openNameEnd = openNameStart + 4;
+            const edit = new vscode.WorkspaceEdit();
+            edit.replace(
+              document.uri,
+              new vscode.Range(
+                getPositionAt(document, openNameStart, docText),
+                getPositionAt(document, openNameEnd, docText)
+              ),
+              "section"
+            );
+
+            const closeRegex = /<\/main\s*>/gi;
+            closeRegex.lastIndex = openStart + openMatch[0].length;
+            const closeMatch = closeRegex.exec(docText);
+            if (closeMatch) {
+              const closeStart = closeMatch.index;
+              const closeNameStart = closeStart + 2;
+              const closeNameEnd = closeNameStart + 4;
+              edit.replace(
+                document.uri,
+                new vscode.Range(
+                  getPositionAt(document, closeNameStart, docText),
+                  getPositionAt(document, closeNameEnd, docText)
+                ),
+                "section"
+              );
+            }
+
+            const action = new vscode.CodeAction(
+              "Change duplicate <main> to <section>",
+              vscode.CodeActionKind.QuickFix
+            );
+            action.diagnostics = [diag];
+            action.edit = edit;
+            actions.push(action);
+          }
+        }
+      }
+
+      if (isAriaValidAttrValueDiagnostic(diag)) {
+        const parsed = parseInvalidAriaValueMessage(diag.message);
+        if (parsed) {
+          const docText = document.getText();
+          const startOffset = getOffsetAt(document, diag.range.start, docText);
+          const tag = findEnclosingTag(docText, startOffset);
+          if (tag) {
+            const ext = path.extname(document.uri.fsPath).toLowerCase();
+            const isJsx = ext === ".jsx" || ext === ".tsx";
+            const attrs = parseTagAttributes(tag.text);
+            const replacement = getAriaQuickFixValue(parsed.attr);
+            const edit = new vscode.WorkspaceEdit();
+            const didSet = setAttributeValue(
+              document,
+              docText,
+              edit,
+              tag,
+              attrs,
+              parsed.attr,
+              replacement,
+              !isJsx,
+              true
+            );
+            if (didSet) {
+              const action = new vscode.CodeAction(
+                `Set ${parsed.attr}="${replacement}"`,
+                vscode.CodeActionKind.QuickFix
+              );
+              action.diagnostics = [diag];
+              action.edit = edit;
+              actions.push(action);
+            }
+          }
         }
       }
 
