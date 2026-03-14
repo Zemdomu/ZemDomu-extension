@@ -25,6 +25,7 @@
 - Chore: add quick fix coverage for requireLinkText
 - Chore: clean out/dist build artifacts after tests
 - Chore: add fixture-driven behavior tests that validate core rule hits and extension quick-fix output from JSON test files
+- Chore: update the bundled ZemDomu core dependency to 1.3.18 for this release.
 
 ### Docs
 
