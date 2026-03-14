@@ -1,5 +1,11 @@
 ## Unreleased
 
+## 0.0.15
+
+### Security
+
+- Security: bump the undici override to 7.24.0 and add a yauzl override to 3.2.1 to resolve current Dependabot alerts in the extension packaging toolchain without changing linting behavior.
+
 ## 0.0.14
 
 ### Bugfix
