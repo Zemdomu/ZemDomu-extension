@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Bugfix
+
+- Bugfix: expose `noTabindexGreaterThanZero` in extension rule settings and diagnostic documentation links.
+
 ## 0.0.15
 
 ### Security

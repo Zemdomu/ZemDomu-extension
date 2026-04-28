@@ -25,6 +25,8 @@ const html = `
 <nav></nav>
 <div id="dup"></div>
 <div id="dup"></div>
+<div tabindex="2"></div>
+<div aria-hidden="maybe"></div>
 <p>TODO-ZMD</p>
 </body>
 </html>
@@ -48,7 +50,11 @@ const expected = [
   'requireImageInputAlt',
   'requireNavLinks',
   'uniqueIds',
+  'noTabindexGreaterThanZero',
   'preventZemdomuPlaceholders',
+  'requireDocumentTitle',
+  'requireSingleMain',
+  'ariaValidAttrValue',
 ];
 for (const rule of expected) {
   assert.ok(results.some(r => r.rule === rule), `Expected ${rule} warning`);

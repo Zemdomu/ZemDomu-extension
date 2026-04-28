@@ -40,6 +40,7 @@ const RULE_NAMES = [
   "requireImageInputAlt",
   "requireNavLinks",
   "uniqueIds",
+  "noTabindexGreaterThanZero",
   "preventZemdomuPlaceholders",
   "requireDocumentTitle",
   "requireSingleMain",
