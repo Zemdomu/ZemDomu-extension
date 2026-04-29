@@ -1,35 +1,43 @@
 # ZemDomu VS Code Extension
 
-Semantic HTML linting for a cleaner, more accessible web.
+> Semantic feedback while you code.
 
-## What it is
+The ZemDomu VS Code Extension brings ZemDomu's semantic checks directly into the
+editor. It highlights structure, accessibility, and search-related markup
+issues while you work, so you can fix them before they become CI failures or
+late-stage audit findings.
 
-ZemDomu is a VS Code extension that lints HTML, JSX, TSX, and Vue templates for
-semantic and accessibility issues. It integrates with the Problems panel and
-inline diagnostics so you can catch structural problems early.
+Most linters check syntax. ZemDomu checks meaning.
+
+## What It Is
+
+ZemDomu is a VS Code extension for HTML, JSX, TSX, and Vue templates. It
+integrates with inline diagnostics, the Problems panel, workspace scans, and
+quick fixes so semantic feedback becomes part of normal development rather than
+an extra review step.
+
+## Why ZemDomu
+
+Compared with generic editor linting and post-deploy scanners, ZemDomu is built
+to give faster and more actionable semantic feedback while you code.
+
+- Focused semantic diagnostics for document structure, accessible names, and landmarks.
+- Consistent rule behavior with ZemDomu Core and the ZemDomu GitHub Action.
+- Cross-component analysis to surface issues hidden behind imports.
+- Built-in quick fixes for common remediation paths.
 
 ## Features
 
 - Lints HTML, JSX, TSX, and Vue templates with semantic rules.
 - Runs on save, on type, or manually.
 - Workspace scan command and status bar issue count.
-- Cross-component JSX/Vue analysis.
-- Quick fixes for common missing attributes.
+- Cross-component JSX and Vue analysis.
+- Quick fixes for common missing attributes and semantic issues.
 - Optional verbose logging and performance diagnostics.
 
-## Why ZemDomu vs alternatives
+## Quick Start
 
-Compared with generic editor linting and post-deploy scanners, ZemDomu aims to
-give faster and more actionable semantic feedback while you code:
-
-- Focused semantic diagnostics for HTML structure, accessible names, and landmarks.
-- Consistent rule behavior with the ZemDomu CLI and GitHub Action.
-- Cross-component analysis to surface issues hidden behind imports.
-- Built-in quick fixes for common remediation paths.
-
-## Quick start
-
-1. Install from the VS Code Marketplace or search for "ZemDomu" in Extensions.
+1. Install from the VS Code Marketplace or search for `ZemDomu` in Extensions.
 2. Open an `.html`, `.jsx`, `.tsx`, or `.vue` file.
 3. Save the file or run `ZemDomu: Scan Workspace for Semantic Issues`
    (`Ctrl+Alt+Z` / `Cmd+Alt+Z`).
@@ -39,7 +47,7 @@ give faster and more actionable semantic feedback while you code:
 
 Settings are under the `zemdomu` namespace.
 
-### Run mode
+### Run Mode
 
 ```json
 "zemdomu.run": "onSave"
@@ -47,21 +55,21 @@ Settings are under the `zemdomu` namespace.
 
 Options: `onSave`, `onType`, `manual`, `disabled`.
 
-### Cross-component analysis
+### Cross-Component Analysis
 
 ```json
 "zemdomu.crossComponentAnalysis": true
 ```
 
-### Logging and diagnostics
+### Logging and Diagnostics
 
 ```json
 "zemdomu.devMode": false,
 "zemdomu.enableVerboseLogging": false
 ```
 
-`devMode` enables the "ZemDomu Perf" output channel. `enableVerboseLogging`
-adds structured lifecycle logs to the "ZemDomu" channel.
+`devMode` enables the `ZemDomu Perf` output channel. `enableVerboseLogging`
+adds structured lifecycle logs to the `ZemDomu` output channel.
 
 ### Rules
 
@@ -91,15 +99,18 @@ Supported rules:
 - requireTableCaption
 - preventEmptyInlineTags
 - requireHrefOnAnchors
-- requireButtonText (non-empty accessible name from content, aria-label, or aria-labelledby)
+- requireButtonText
 - requireIframeTitle
 - requireHtmlLang
 - requireImageInputAlt
 - requireNavLinks
 - uniqueIds
 - preventZemdomuPlaceholders
+- requireDocumentTitle
+- requireSingleMain
+- ariaValidAttrValue
 
-### Inline disabling
+## Inline Disabling
 
 ```html
 <!-- zemdomu-disable-next -->
@@ -111,7 +122,7 @@ Supported rules:
 {/* zemdomu-disable-next */}
 ```
 
-## Local development (monorepo)
+## Local Development
 
 From the extension package:
 
@@ -124,9 +135,9 @@ npm test
 ## Links
 
 - Extension page: https://marketplace.visualstudio.com/items?itemName=ZachariasErydBerlin.zemdomu
-- Issues and suggestions: https://github.com/Zemdomu/ZemDomu-extension/issues
-- ZemDomu core: https://www.npmjs.com/package/zemdomu
-- Website: https://zemdomu.dev/
+- Issues and suggestions: https://github.com/ZemDomu/ZemDomu-extension/issues
+- ZemDomu Core: https://www.npmjs.com/package/zemdomu
+- Website and docs: https://zemdomu.dev/
 
 ## License
 
