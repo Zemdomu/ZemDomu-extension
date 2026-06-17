@@ -1,5 +1,11 @@
 ## Unreleased
 
+## 0.0.17
+
+### Bugfix
+
+- Bugfix: bundle ZemDomu Core 1.3.19 so the extension includes decorative image alt handling and framework app-shell HTML fixes.
+
 ## 0.0.16
 
 ### Security
