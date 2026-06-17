@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Security
+
+- Security: update extension build and packaging dependencies, and refresh dependency overrides, to clear current npm audit vulnerabilities in the extension toolchain.
+
 ### Bugfix
 
 - Bugfix: expose `noTabindexGreaterThanZero` in extension rule settings and diagnostic documentation links.
