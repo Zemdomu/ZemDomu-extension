@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.0.16
+
 ### Security
 
 - Security: update extension build and packaging dependencies, and refresh dependency overrides, to clear current npm audit vulnerabilities in the extension toolchain.
