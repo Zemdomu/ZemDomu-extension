@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Security
+
+- Security: update dependency overrides and the lockfile to patched js-yaml, brace-expansion, undici, fast-uri, linkify-it, and related transitive versions.
+
 ## 0.0.17
 
 ### Bugfix
