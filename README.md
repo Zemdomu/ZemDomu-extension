@@ -9,6 +9,18 @@ late-stage audit findings.
 
 Most linters check syntax. ZemDomu checks meaning.
 
+## Scope and Limitations
+
+ZemDomu analyzes source markup; it cannot establish WCAG conformance. Use it
+alongside rendered-DOM testing, keyboard review, browser accessibility tools,
+and assistive-technology testing. Runtime state, CSS, dynamic or bound values,
+conditional rendering, and slotted content can change the accessible result
+after static analysis.
+
+Linting runs locally in the VS Code Extension Host. ZemDomu does not transmit
+source files or diagnostics. Diagnostic documentation links open only when you
+choose to follow them.
+
 ## What It Is
 
 ZemDomu is a VS Code extension for HTML, JSX, TSX, and Vue templates. It
@@ -58,8 +70,13 @@ Options: `onSave`, `onType`, `manual`, `disabled`.
 ### Cross-Component Analysis
 
 ```json
-"zemdomu.crossComponentAnalysis": true
+"zemdomu.crossComponentAnalysis": true,
+"zemdomu.crossComponentDepth": 50
 ```
+
+In multi-root workspaces, each folder is analyzed independently as its own
+project root. Files outside a workspace folder are linted without
+cross-component analysis.
 
 ### Logging and Diagnostics
 
@@ -71,7 +88,7 @@ Options: `onSave`, `onType`, `manual`, `disabled`.
 `devMode` enables the `ZemDomu Perf` output channel. `enableVerboseLogging`
 adds structured lifecycle logs to the `ZemDomu` output channel.
 
-### Rules
+### Supported Rules
 
 Enable or disable individual rules:
 
@@ -87,28 +104,27 @@ Override severity per rule:
 "zemdomu.severity.enforceHeadingOrder": "error"
 ```
 
-Supported rules:
-
-- requireSectionHeading
-- enforceHeadingOrder
-- singleH1
-- requireAltText
-- requireLabelForFormControls
-- enforceListNesting
-- requireLinkText
-- requireTableCaption
-- preventEmptyInlineTags
-- requireHrefOnAnchors
-- requireButtonText
-- requireIframeTitle
-- requireHtmlLang
-- requireImageInputAlt
-- requireNavLinks
-- uniqueIds
-- preventZemdomuPlaceholders
-- requireDocumentTitle
-- requireSingleMain
-- ariaValidAttrValue
+- `requireSectionHeading`
+- `enforceHeadingOrder`
+- `singleH1`
+- `requireAltText`
+- `requireLabelForFormControls`
+- `enforceListNesting`
+- `requireLinkText`
+- `requireTableCaption`
+- `preventEmptyInlineTags`
+- `requireHrefOnAnchors`
+- `requireButtonText`
+- `requireIframeTitle`
+- `requireHtmlLang`
+- `requireImageInputAlt`
+- `requireNavLinks`
+- `uniqueIds`
+- `noTabindexGreaterThanZero`
+- `preventZemdomuPlaceholders`
+- `requireDocumentTitle`
+- `requireSingleMain`
+- `ariaValidAttrValue`
 
 ## Inline Disabling
 
@@ -122,6 +138,14 @@ Supported rules:
 {/* zemdomu-disable-next */}
 ```
 
+Disable controls work in HTML, JSX/TSX, and Vue templates. Block controls apply
+from `zemdomu-disable` through `zemdomu-enable`, and all diagnostics on a
+disabled line are suppressed.
+
+`singleH1` and `requireNavLinks` are house-style rules. `requireTableCaption`
+and `requireSectionHeading` are advisory by default; enable or elevate them
+when a specific project or conformance requirement calls for that policy.
+
 ## Local Development
 
 From the extension package:
@@ -131,6 +155,9 @@ cd packages/ZemDomu-Extension
 npm install
 npm test
 ```
+
+For run-mode details, framework limitations, troubleshooting, privacy, and
+performance diagnostics, see the packaged [user guide](docs/USER_GUIDE.md).
 
 ## Links
 

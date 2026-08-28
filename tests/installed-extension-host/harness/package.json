@@ -1,0 +1,11 @@
+{
+  "name": "zemdomu-installed-smoke-harness",
+  "displayName": "ZemDomu Installed Extension Smoke Harness",
+  "publisher": "zemdomu-tests",
+  "version": "0.0.0",
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "main": "./extension.js",
+  "activationEvents": []
+}

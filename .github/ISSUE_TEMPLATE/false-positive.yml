@@ -1,0 +1,53 @@
+name: False positive
+description: Report a diagnostic that appears for valid or intentionally accepted markup.
+title: "[False positive]: "
+body:
+  - type: input
+    id: rule
+    attributes:
+      label: Rule and diagnostic code
+      placeholder: requireAltText / ZMD004
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: ZemDomu and VS Code versions
+      placeholder: ZemDomu 0.0.17, VS Code 1.105.0
+    validations:
+      required: true
+  - type: dropdown
+    id: syntax
+    attributes:
+      label: Syntax
+      options:
+        - HTML
+        - JSX
+        - TSX
+        - Vue
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Minimal valid example
+      description: Remove private code and show why the markup should not produce this diagnostic.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: reasoning
+    attributes:
+      label: Why this should be accepted
+      description: Include any relevant accessible-name source, framework behavior, standard, or project policy.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: The diagnostic remains after saving or manually scanning the workspace.
+          required: true
+        - label: I removed credentials, private code, and personal data.
+          required: true

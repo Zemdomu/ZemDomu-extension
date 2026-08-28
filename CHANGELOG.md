@@ -1,7 +1,36 @@
 ## Unreleased
 
+### Bugfix
+
+- Bugfix: publish the same inspected VSIX that passes the deterministic release checks, with clean-profile installation and real Extension Host smoke coverage before Marketplace publication.
+- Bugfix: verify rule enablement, severity changes, and status-bar issue counts as part of the launch test suite.
+- Bugfix: make on-save, on-type, manual, and disabled run modes honor their documented triggers, including linting unsaved editor buffers in on-type mode and avoiding implicit workspace scans during activation or settings changes.
+- Bugfix: preserve last-known diagnostics when scans fail and report failures through the scan command, a user-visible error, and actionable output-channel details.
+- Bugfix: honor inline disable-next, disable, and enable controls in shipped HTML, JSX/TSX, and Vue project scans, including same-line blocks and multiple findings on one line.
+- Bugfix: preserve repeated HTML findings instead of collapsing diagnostics that share a rule, message, and line.
+- Bugfix: target quick fixes with document-absolute offsets and correct line/column conversion, including table caption insertion in multiline and CRLF documents.
+- Bugfix: replace empty accessibility attribute values without creating duplicate attributes, and withhold unsafe list-wrapping fixes for inline JSX expressions.
+- Bugfix: replace corrupted characters in settings, progress notifications, and diagnostic log previews.
+
+### Feature
+
+- Feature: expose `crossComponentDepth` as a supported setting and analyze each folder in a multi-root workspace as an independent project root.
+
+### Docs
+
+- Docs: identify `singleH1` and `requireNavLinks` as house style, and table-caption and section-heading guidance as advisory unless a specific conformance requirement applies.
+- Docs: add guided GitHub report forms for extension bugs, false positives, false negatives, and performance regressions.
+- Docs: list all 21 supported rules consistently in the README and Marketplace user guide, including `noTabindexGreaterThanZero`.
+- Docs: explain run modes, supported VS Code versions, static-analysis limitations, privacy, troubleshooting, and performance diagnostics in the Marketplace user guide.
+
+### Performance
+
+- Performance: enforce a 5 MiB bundle ceiling and a 2 MiB packaged VSIX ceiling; the verified release candidate is 1.27 MiB and excludes source, tests, compiled `out/`, dependencies, and stale VSIX files.
+- Performance: add a reproducible 1,000-file mixed-framework workspace benchmark with enforced scan-time and peak-memory launch thresholds.
+
 ### Security
 
+- Security: update production and release-tool dependency overrides to patched versions and enforce a zero-high production audit in pull-request and release pipelines.
 - Security: update dependency overrides and the lockfile to patched js-yaml, brace-expansion, undici, fast-uri, and related transitive versions.
 
 ## 0.0.17

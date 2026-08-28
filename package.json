@@ -52,12 +52,20 @@
             "disabled"
           ],
           "default": "onSave",
-          "description": "When to run semantic linting:\nΓÇó onSave ΓÇö after each file save\nΓÇó onType ΓÇö as you type\nΓÇó manual ΓÇö only via the Scan Workspace command\nΓÇó disabled ΓÇö never run automatically"
+          "description": "When to run semantic linting:\n- onSave: after each file save\n- onType: as you type\n- manual: only via the Scan Workspace command\n- disabled: never run automatically"
         },
         "zemdomu.crossComponentAnalysis": {
           "type": "boolean",
           "default": true,
+          "scope": "resource",
           "description": "Analyze and detect semantic issues across component boundaries"
+        },
+        "zemdomu.crossComponentDepth": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 50,
+          "scope": "resource",
+          "description": "Maximum local dependency depth followed during cross-component analysis. Set to 0 to analyze only direct entries."
         },
         "zemdomu.devMode": {
           "type": "boolean",
@@ -72,7 +80,7 @@
         "zemdomu.rules.requireSectionHeading": {
           "type": "boolean",
           "default": true,
-          "description": "Warn when a <section> has no heading."
+          "description": "Advisory by default: warn when a <section> has no heading. A heading can support WCAG 2.4.10 (AAA) when that criterion applies."
         },
         "zemdomu.rules.enforceHeadingOrder": {
           "type": "boolean",
@@ -82,7 +90,7 @@
         "zemdomu.rules.singleH1": {
           "type": "boolean",
           "default": true,
-          "description": "Warn if more than one <h1> is used in a document."
+          "description": "House style: warn if more than one <h1> is used in a document. This is not a general WCAG conformance requirement."
         },
         "zemdomu.rules.requireAltText": {
           "type": "boolean",
@@ -107,7 +115,7 @@
         "zemdomu.rules.requireTableCaption": {
           "type": "boolean",
           "default": true,
-          "description": "Warn when a <table> is missing a <caption> element."
+          "description": "Advisory by default: warn when a <table> is missing a <caption>. Captions can help satisfy structural requirements such as WCAG 1.3.1 when applicable."
         },
         "zemdomu.rules.preventEmptyInlineTags": {
           "type": "boolean",
@@ -142,7 +150,7 @@
         "zemdomu.rules.requireNavLinks": {
           "type": "boolean",
           "default": true,
-          "description": "Warn when a <nav> element contains no links."
+          "description": "House style: warn when a <nav> contains no links. This is an authoring policy rather than a universal WCAG conformance requirement."
         },
         "zemdomu.rules.uniqueIds": {
           "type": "boolean",
@@ -370,10 +378,19 @@
     "compile": "tsc -p ./tsconfig.json",
     "watch": "tsc -w",
     "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --minify --external:vscode --outfile=dist/extension.js",
-    "package": "vsce package --out dist/zemdomu.vsix",
-    "test": "npm run compile && npm run bundle && node tests/inline-disable.test.js && node tests/linter-labels.test.js && node tests/all-rules.test.js && node tests/rule-surface.test.js && node tests/unique-ids.test.js && node tests/cross-component-extension.test.js && node tests/extension-cross-component.test.js && node tests/vue-extension.test.js && node tests/quick-fixes.test.js && node tests/fixture-behavior.test.js && node tests/package-size.test.js",
+    "vscode:prepublish": "npm test && npm run bundle",
+    "package": "vsce package --no-dependencies --out dist/zemdomu.vsix && node tests/package-contents.test.js && node tests/package-size.test.js --vsix",
+    "test:rule-oracle": "node tests/run-rule-oracle.js",
+    "test": "npm run compile && npm run bundle && node tests/run-modes.test.js && node tests/issue-tracker.test.js && node tests/race-stress.test.js && node tests/inline-disable.test.js && node tests/multi-root.test.js && node tests/linter-labels.test.js && node tests/all-rules.test.js && node tests/rule-surface.test.js && node tests/unique-ids.test.js && node tests/cross-component-extension.test.js && node tests/extension-cross-component.test.js && node tests/vue-extension.test.js && node tests/quick-fixes.test.js && node tests/full-document-quick-fixes.test.js && node tests/fixture-behavior.test.js && node tests/user-facing-text.test.js && node tests/smoke-test.test.js && node tests/npm-link.test.js && node tests/package-size.test.js --bundle",
+    "test:extension-host": "node tests/extension-host/run.js",
+    "test:vsix-install": "node tests/install-vsix.test.js",
+    "benchmark:workspace": "node tests/workspace-benchmark.js",
+    "audit:production": "npm audit --omit=dev --audit-level=high",
+    "audit:all": "npm audit --audit-level=high",
     "posttest": "node -e \"const fs=require('fs');fs.rmSync('out',{recursive:true,force:true});fs.rmSync('dist',{recursive:true,force:true});\"",
-    "publish-all": "npm install && npm run compile && npm run bundle && npm run package"
+    "release:check": "npm run audit:production && npm run audit:all && npm run package && npm run test:vsix-install",
+    "release": "npm ci && npm run release:check",
+    "publish-all": "npm run release"
   },
   "devDependencies": {
     "@babel/parser": "^7.29.7",
@@ -383,22 +400,26 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^24.9.1",
     "@types/vscode": "^1.105.0",
+    "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.28.1",
     "jest": "^30.4.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "yauzl": "^3.4.0"
   },
   "overrides": {
     "lodash": "4.18.1",
     "@isaacs/brace-expansion": "5.0.9",
-    "brace-expansion": "5.0.9",
+    "brace-expansion@^1.0.0": "1.1.18",
+    "brace-expansion@^5.0.0": "5.0.9",
     "ajv@^8.0.0": "8.18.0",
+    "fast-uri@^3.0.0": "3.1.6",
     "glob@^10.0.0": "10.5.0",
     "glob@^11.0.0": "11.1.0",
     "js-yaml@^3.0.0": "4.3.1",
     "js-yaml@^4.0.0": "4.3.1",
     "jws@^3.2.2": "3.2.3",
-    "markdown-it@^14.0.0": "14.2.0",
+    "markdown-it@^14.0.0": "15.0.1",
     "minimatch@^3.0.0": "3.1.4",
     "minimatch@^9.0.0": "9.0.7",
     "minimatch@^10.0.0": "10.2.4",

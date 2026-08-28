@@ -1,18 +1,20 @@
 ﻿import * as vscode from "vscode";
 import * as path from "path";
+import * as fs from "fs/promises";
 
 import { ProjectLinter } from "zemdomu";
 import type { ProjectLinterOptions, LintResult } from "zemdomu";
 
 import { PerformanceDiagnostics } from "./performance-diagnostics";
 import { IssueTracker } from "./issue-tracker";
+import { applyInlineDisableDirectives } from "./linter";
 
 /**
  * Race-safe, queued, and atomic application of diagnostics.
  * - Serializes workspace scans to avoid overlapping clears/applies
  * - Uses runId guards for compute and apply
  * - Avoids diagnostics.clear() upfront; surgically removes stale files
- * - Defers initial full scan in onSave mode to avoid colliding with first save
+ * - Keeps automatic work aligned with the selected public run-mode contract
  */
 
 type FileCacheEntry = {
@@ -20,7 +22,11 @@ type FileCacheEntry = {
   diags: vscode.Diagnostic[];
 };
 
-type LintResultWithCode = LintResult & { code?: string };
+type LintResultWithCode = LintResult & {
+  code?: string;
+  offset?: number;
+  endOffset?: number;
+};
 
 const DOCS_BASE_URL = "https://zemdomu.dev/docs/";
 const RULE_NAMES = [
@@ -80,9 +86,12 @@ function queueWorkspace(run: () => Promise<void>) {
 
 // Create a stable signature for a LintResult
 function keyLint(r: LintResult): string {
+  const located = r as LintResultWithCode;
   const line = Number.isFinite(r.line) ? r.line : 0;
   const col = Number.isFinite(r.column) ? r.column : 0;
-  return `${r.rule}|${line}|${col}|${r.message}`;
+  const offset = Number.isFinite(located.offset) ? located.offset : "";
+  const endOffset = Number.isFinite(located.endOffset) ? located.endOffset : "";
+  return `${r.rule}|${line}|${col}|${offset}|${endOffset}|${r.message}`;
 }
 
 // Deterministic ordering makes comparisons stable
@@ -101,7 +110,7 @@ function docsUriForRule(rule: string): vscode.Uri | null {
 
 function previewKeys(keys: string[]): string[] {
   if (keys.length <= 6) return keys;
-  return [...keys.slice(0, 3), "ΓÇª", ...keys.slice(-3)];
+  return [...keys.slice(0, 3), "...", ...keys.slice(-3)];
 }
 
 // Cheap etag for open docs: VS Code version; fallback null
@@ -417,12 +426,6 @@ function getAriaQuickFixValue(attr: string): string {
   }
 }
 
-function extractTagName(lineText: string, startChar: number): string | null {
-  const slice = lineText.slice(startChar);
-  const match = slice.match(/<\s*([A-Za-z][\w:-]*)/);
-  return match ? match[1] : null;
-}
-
 function findTagEnd(text: string, start: number): number | null {
   if (text[start] !== "<") return null;
   let inSingle = false;
@@ -492,56 +495,6 @@ function findTagEnd(text: string, start: number): number | null {
   return null;
 }
 
-function findTabindexValueRange(
-  lineText: string,
-  lineNumber: number
-): { range: vscode.Range } | null {
-  const attrMatch = /tabindex\s*=\s*/i.exec(lineText);
-  if (!attrMatch || attrMatch.index === undefined) return null;
-  const valueStart = attrMatch.index + attrMatch[0].length;
-  if (valueStart >= lineText.length) return null;
-
-  const firstChar = lineText[valueStart];
-  if (firstChar === '"' || firstChar === "'") {
-    const end = lineText.indexOf(firstChar, valueStart + 1);
-    if (end === -1) return null;
-    return {
-      range: new vscode.Range(
-        new vscode.Position(lineNumber, valueStart + 1),
-        new vscode.Position(lineNumber, end)
-      ),
-    };
-  }
-
-  if (firstChar === "{") {
-    const end = lineText.indexOf("}", valueStart + 1);
-    if (end === -1) return null;
-    return {
-      range: new vscode.Range(
-        new vscode.Position(lineNumber, valueStart + 1),
-        new vscode.Position(lineNumber, end)
-      ),
-    };
-  }
-
-  let end = lineText.length;
-  for (let i = valueStart; i < lineText.length; i++) {
-    const ch = lineText[i];
-    if (/\s/.test(ch) || ch === ">" || ch === "/") {
-      end = i;
-      break;
-    }
-  }
-
-  if (end <= valueStart) return null;
-  return {
-    range: new vscode.Range(
-      new vscode.Position(lineNumber, valueStart),
-      new vscode.Position(lineNumber, end)
-    ),
-  };
-}
-
 type TagInfo = {
   name: string;
   rawName?: string;
@@ -607,6 +560,72 @@ function findEnclosingTag(text: string, offset: number): TagInfo | null {
     };
   }
   return null;
+}
+
+function findOpeningTag(
+  text: string,
+  offset: number,
+  preferredName?: string
+): TagInfo | null {
+  const enclosing = findEnclosingTag(text, offset);
+  if (
+    enclosing &&
+    (!preferredName ||
+      enclosing.name === preferredName.toLowerCase() ||
+      (preferredName.toLowerCase() === "a" &&
+        enclosing.rawName !== enclosing.rawName?.toLowerCase()))
+  ) {
+    return enclosing;
+  }
+
+  const escapedName = preferredName
+    ? preferredName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    : "[A-Za-z][\\w:-]*";
+  const pattern = new RegExp(`<\\s*(${escapedName})\\b`, "gi");
+  pattern.lastIndex = Math.max(0, offset);
+  let match = pattern.exec(text);
+  if (!match && preferredName) {
+    pattern.lastIndex = 0;
+    match = pattern.exec(text);
+  }
+  if (!match) return null;
+  const end = findTagEnd(text, match.index);
+  if (end === null) return null;
+  return {
+    name: match[1].toLowerCase(),
+    rawName: match[1],
+    start: match.index,
+    end,
+    text: text.slice(match.index, end + 1),
+  };
+}
+
+function tagNameFromDiagnostic(message: string): string | undefined {
+  return /<([A-Za-z][\w:-]*)\b/.exec(message)?.[1];
+}
+
+function findTagWithAttribute(
+  text: string,
+  offset: number,
+  attributeName: string
+): TagInfo | null {
+  const enclosing = findEnclosingTag(text, offset);
+  if (
+    enclosing &&
+    parseTagAttributes(enclosing.text).some(
+      (attr) => attr.name.toLowerCase() === attributeName.toLowerCase()
+    )
+  ) {
+    return enclosing;
+  }
+  const attribute = new RegExp(`\\b${attributeName}\\s*=`, "ig");
+  attribute.lastIndex = Math.max(0, offset);
+  let match = attribute.exec(text);
+  if (!match) {
+    attribute.lastIndex = 0;
+    match = attribute.exec(text);
+  }
+  return match ? findEnclosingTag(text, match.index) : null;
 }
 
 function parseTagAttributes(tagText: string): ParsedAttr[] {
@@ -1089,10 +1108,13 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
         const docText = document.getText();
         const lines = docText.split(/\r?\n/);
         const lineAt = (idx: number) => lines[idx] ?? "";
+        const ext = path.extname(document.uri.fsPath).toLowerCase();
+        const isJsx = ext === ".jsx" || ext === ".tsx";
 
         let startLine = diag.range.start.line;
         let endLine = diag.range.start.line;
         const startOffset = getOffsetAt(document, diag.range.start, docText);
+        let wrapsOnlyListMarkup = true;
 
         let jsBlockStart: number | null = null;
         for (let i = startLine; i >= 0; i--) {
@@ -1126,6 +1148,13 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
             const endPos = getPositionAt(document, liRange.end, docText);
             startLine = startPos.line;
             endLine = endPos.line;
+            if (isJsx) {
+              const beforeListItem = lineAt(startLine).slice(0, startPos.character);
+              const afterListItem = lineAt(endLine).slice(endPos.character);
+              wrapsOnlyListMarkup =
+                beforeListItem.trim().length === 0 &&
+                afterListItem.trim().length === 0;
+            }
           } else {
             for (let i = startLine - 1; i >= 0; i--) {
               const trimmed = lineAt(i).trim();
@@ -1148,6 +1177,8 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
             }
           }
         }
+
+        if (!wrapsOnlyListMarkup) continue;
 
         const baseIndent = lineAt(startLine).match(/^\s*/)?.[0] ?? "";
         const edit = new vscode.WorkspaceEdit();
@@ -1172,14 +1203,13 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
       }
 
       if (isNavLinksDiagnostic(diag)) {
-        const line = document.lineAt(diag.range.start.line);
-        const lineText = line.text;
         const docText = document.getText();
         const startOffset = getOffsetAt(document, diag.range.start, docText);
-        const tagEnd = findTagEnd(docText, startOffset);
-        if (tagEnd !== null && docText[tagEnd - 1] !== "/") {
-          const baseIndent = lineText.match(/^\s*/)?.[0] ?? "";
-          const insertPos = getPositionAt(document, tagEnd + 1, docText);
+        const tag = findOpeningTag(docText, startOffset, "nav");
+        if (tag && docText[tag.end - 1] !== "/") {
+          const tagLine = getPositionAt(document, tag.start, docText).line;
+          const baseIndent = document.lineAt(tagLine).text.match(/^\s*/)?.[0] ?? "";
+          const insertPos = getPositionAt(document, tag.end + 1, docText);
           const edit = new vscode.WorkspaceEdit();
           edit.insert(
             document.uri,
@@ -1197,15 +1227,19 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
       }
 
       if (isTabindexDiagnostic(diag)) {
-        const line = document.lineAt(diag.range.start.line);
-        const lineText = line.text;
-        const valueRange = findTabindexValueRange(
-          lineText,
-          diag.range.start.line
-        );
-        if (valueRange) {
+        const docText = document.getText();
+        const startOffset = getOffsetAt(document, diag.range.start, docText);
+        const tag = findTagWithAttribute(docText, startOffset, "tabindex");
+        const attr = tag
+          ? findAttribute(parseTagAttributes(tag.text), ["tabindex"], true)
+          : null;
+        if (tag && attr && attr.valueStart !== null && attr.valueEnd !== null) {
+          const valueRange = new vscode.Range(
+            getPositionAt(document, tag.start + attr.valueStart, docText),
+            getPositionAt(document, tag.start + attr.valueEnd, docText)
+          );
           const editZero = new vscode.WorkspaceEdit();
-          editZero.replace(document.uri, valueRange.range, "0");
+          editZero.replace(document.uri, valueRange, "0");
           const actionZero = new vscode.CodeAction(
             'Set tabindex to "0"',
             vscode.CodeActionKind.QuickFix
@@ -1215,7 +1249,7 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
           actions.push(actionZero);
 
           const editMinus = new vscode.WorkspaceEdit();
-          editMinus.replace(document.uri, valueRange.range, "-1");
+          editMinus.replace(document.uri, valueRange, "-1");
           const actionMinus = new vscode.CodeAction(
             'Set tabindex to "-1"',
             vscode.CodeActionKind.QuickFix
@@ -1283,15 +1317,9 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
 
         if (diag.message.includes("<title> element must not be empty")) {
           const startOffset = getOffsetAt(document, diag.range.start, docText);
-          const openRegex = /<title\b[^>]*>/gi;
-          openRegex.lastIndex = startOffset;
-          let openMatch = openRegex.exec(docText);
-          if (!openMatch) {
-            openRegex.lastIndex = 0;
-            openMatch = openRegex.exec(docText);
-          }
-          if (openMatch) {
-            const openEnd = openMatch.index + openMatch[0].length;
+          const openTag = findOpeningTag(docText, startOffset, "title");
+          if (openTag) {
+            const openEnd = openTag.end + 1;
             const closeStart = docText.indexOf("</title>", openEnd);
             if (closeStart !== -1) {
               const edit = new vscode.WorkspaceEdit();
@@ -1347,15 +1375,9 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
 
         if (diag.message.includes("Only one <main>")) {
           const startOffset = getOffsetAt(document, diag.range.start, docText);
-          const openRegex = /<main\b[^>]*>/gi;
-          openRegex.lastIndex = startOffset;
-          let openMatch = openRegex.exec(docText);
-          if (!openMatch) {
-            openRegex.lastIndex = 0;
-            openMatch = openRegex.exec(docText);
-          }
-          if (openMatch) {
-            const openStart = openMatch.index;
+          const openTag = findOpeningTag(docText, startOffset, "main");
+          if (openTag) {
+            const openStart = openTag.start;
             const openNameStart = openStart + 1;
             const openNameEnd = openNameStart + 4;
             const edit = new vscode.WorkspaceEdit();
@@ -1369,7 +1391,7 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
             );
 
             const closeRegex = /<\/main\s*>/gi;
-            closeRegex.lastIndex = openStart + openMatch[0].length;
+            closeRegex.lastIndex = openTag.end + 1;
             const closeMatch = closeRegex.exec(docText);
             if (closeMatch) {
               const closeStart = closeMatch.index;
@@ -1435,11 +1457,9 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
       if (isSingleH1Diagnostic(diag)) {
         const docText = document.getText();
         const startOffset = getOffsetAt(document, diag.range.start, docText);
-        const openRegex = /<h1\b[^>]*>/gi;
-        openRegex.lastIndex = startOffset;
-        const openMatch = openRegex.exec(docText);
-        if (openMatch) {
-          const openStart = openMatch.index;
+        const openTag = findOpeningTag(docText, startOffset, "h1");
+        if (openTag) {
+          const openStart = openTag.start;
           const openNameStart = openStart + 1;
           const openNameEnd = openNameStart + 2;
           const edit = new vscode.WorkspaceEdit();
@@ -1453,7 +1473,7 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
           );
 
           const closeRegex = /<\/h1\s*>/gi;
-          closeRegex.lastIndex = openStart + openMatch[0].length;
+          closeRegex.lastIndex = openTag.end + 1;
           const closeMatch = closeRegex.exec(docText);
           if (closeMatch) {
             const closeStart = closeMatch.index;
@@ -1493,14 +1513,13 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
               diag.range.start,
               docText
             );
-            const openRegex = new RegExp(
-              `<h${parsed.current}\\b[^>]*>`,
-              "ig"
+            const openTag = findOpeningTag(
+              docText,
+              startOffset,
+              `h${parsed.current}`
             );
-            openRegex.lastIndex = startOffset;
-            const openMatch = openRegex.exec(docText);
-            if (openMatch) {
-              const openStart = openMatch.index;
+            if (openTag) {
+              const openStart = openTag.start;
               const openNameStart = openStart + 1;
               const openNameEnd = openNameStart + 2;
               const edit = new vscode.WorkspaceEdit();
@@ -1514,7 +1533,7 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
               );
 
               const closeRegex = new RegExp(`</h${parsed.current}\\s*>`, "ig");
-              closeRegex.lastIndex = openStart + openMatch[0].length;
+              closeRegex.lastIndex = openTag.end + 1;
               const closeMatch = closeRegex.exec(docText);
               if (closeMatch) {
                 const closeStart = closeMatch.index;
@@ -1639,26 +1658,41 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
 
       addFormControlQuickFixes(document, diag, actions);
 
-      const line = document.lineAt(diag.range.start.line);
-      const lineText = line.text;
       const docText = document.getText();
       const startOffset = getOffsetAt(document, diag.range.start, docText);
-      const tagEnd = findTagEnd(docText, startOffset);
-      if (tagEnd === null) continue;
+      const tag = findOpeningTag(
+        docText,
+        startOffset,
+        tagNameFromDiagnostic(diag.message)
+      );
+      if (!tag) continue;
 
-      const tagName = extractTagName(lineText, diag.range.start.character);
-      const insertOffset = docText[tagEnd - 1] === "/" ? tagEnd - 1 : tagEnd;
-      const insertPos = getPositionAt(document, insertOffset, docText);
+      const tagName = tag.rawName ?? tag.name;
       const linkTextDiag = isLinkTextDiagnostic(diag);
+      const ext = path.extname(document.uri.fsPath).toLowerCase();
+      const isJsx = ext === ".jsx" || ext === ".tsx";
+      const tagAttrs = parseTagAttributes(tag.text);
 
       const addAttr = (
         title: string,
-        snippet: string,
+        attrName: string,
+        value: string,
         match: (m: string) => boolean
       ) => {
         if (!match(diag.message)) return;
         const edit = new vscode.WorkspaceEdit();
-        edit.insert(document.uri, insertPos, ` ${snippet}`);
+        const didSet = setAttributeValue(
+          document,
+          docText,
+          edit,
+          tag,
+          tagAttrs,
+          attrName,
+          value,
+          !isJsx,
+          false
+        );
+        if (!didSet) return;
         const action = new vscode.CodeAction(
           title,
           vscode.CodeActionKind.QuickFix
@@ -1670,39 +1704,66 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
 
       addAttr(
         `Add alt="${QUICK_FIX_PLACEHOLDER}"`,
-        `alt="${QUICK_FIX_PLACEHOLDER}"`,
+        "alt",
+        QUICK_FIX_PLACEHOLDER,
         (m) => m.includes("img") && m.includes("alt")
       );
       if (diag.message.includes("href attribute")) {
         const edit = new vscode.WorkspaceEdit();
-        edit.insert(document.uri, insertPos, ` href="${QUICK_FIX_PLACEHOLDER}"`);
-        const action = new vscode.CodeAction(
-          `Add href="${QUICK_FIX_PLACEHOLDER}"`,
-          vscode.CodeActionKind.QuickFix
+        const didSetHref = setAttributeValue(
+          document,
+          docText,
+          edit,
+          tag,
+          tagAttrs,
+          "href",
+          QUICK_FIX_PLACEHOLDER,
+          !isJsx,
+          false
         );
-        action.diagnostics = [diag];
-        action.edit = edit;
-        actions.push(action);
+        if (didSetHref) {
+          const action = new vscode.CodeAction(
+            `Add href="${QUICK_FIX_PLACEHOLDER}"`,
+            vscode.CodeActionKind.QuickFix
+          );
+          action.diagnostics = [diag];
+          action.edit = edit;
+          actions.push(action);
+        }
 
         if (tagName && tagName.toLowerCase() !== "a") {
           const toEdit = new vscode.WorkspaceEdit();
-          toEdit.insert(document.uri, insertPos, ` to="${QUICK_FIX_PLACEHOLDER}"`);
-          const toAction = new vscode.CodeAction(
-            `Add to="${QUICK_FIX_PLACEHOLDER}"`,
-            vscode.CodeActionKind.QuickFix
+          const didSetTo = setAttributeValue(
+            document,
+            docText,
+            toEdit,
+            tag,
+            tagAttrs,
+            "to",
+            QUICK_FIX_PLACEHOLDER,
+            !isJsx,
+            false
           );
-          toAction.diagnostics = [diag];
-          toAction.edit = toEdit;
-          actions.push(toAction);
+          if (didSetTo) {
+            const toAction = new vscode.CodeAction(
+              `Add to="${QUICK_FIX_PLACEHOLDER}"`,
+              vscode.CodeActionKind.QuickFix
+            );
+            toAction.diagnostics = [diag];
+            toAction.edit = toEdit;
+            actions.push(toAction);
+          }
         }
       }
       if (diag.message.includes("missing <caption>")) {
-        const capPos = new vscode.Position(diag.range.start.line, tagEnd + 1);
+        const tagLine = getPositionAt(document, tag.start, docText).line;
+        const baseIndent = document.lineAt(tagLine).text.match(/^\s*/)?.[0] ?? "";
+        const capPos = getPositionAt(document, tag.end + 1, docText);
         const edit = new vscode.WorkspaceEdit();
         edit.insert(
           document.uri,
           capPos,
-          `\n  <caption>${QUICK_FIX_PLACEHOLDER}</caption>`
+          `${docText.includes("\r\n") ? "\r\n" : "\n"}${baseIndent}${getIndentUnit(document)}<caption>${QUICK_FIX_PLACEHOLDER}</caption>`
         );
         const action = new vscode.CodeAction(
           `Add <caption>${QUICK_FIX_PLACEHOLDER}</caption>`,
@@ -1714,21 +1775,24 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
       }
       addAttr(
         `Add title="${QUICK_FIX_PLACEHOLDER}"`,
-        `title="${QUICK_FIX_PLACEHOLDER}"`,
+        "title",
+        QUICK_FIX_PLACEHOLDER,
         (m) =>
           m.includes("missing title attribute") ||
           m.includes("title attribute is empty")
       );
       addAttr(
         `Add lang="${QUICK_FIX_PLACEHOLDER}"`,
-        `lang="${QUICK_FIX_PLACEHOLDER}"`,
+        "lang",
+        QUICK_FIX_PLACEHOLDER,
         (m) =>
           m.includes("missing lang attribute") ||
           m.includes("lang attribute is empty")
       );
       addAttr(
         `Add aria-label="${QUICK_FIX_PLACEHOLDER}"`,
-        `aria-label="${QUICK_FIX_PLACEHOLDER}"`,
+        "aria-label",
+        QUICK_FIX_PLACEHOLDER,
         (m) =>
           linkTextDiag ||
           m.includes("accessible text") ||
@@ -1737,7 +1801,8 @@ class ZemCodeActionProvider implements vscode.CodeActionProvider {
       );
       addAttr(
         `Add alt="${QUICK_FIX_PLACEHOLDER}"`,
-        `alt="${QUICK_FIX_PLACEHOLDER}"`,
+        "alt",
+        QUICK_FIX_PLACEHOLDER,
         (m) => m.includes('input type="image"') && m.includes("alt attribute")
       );
     }
@@ -1754,7 +1819,8 @@ export function activate(context: vscode.ExtensionContext) {
     100
   );
   const issueTracker = new IssueTracker(statusBarItem);
-  const cfg = () => vscode.workspace.getConfiguration("zemdomu");
+  const cfg = (resource?: vscode.Uri) =>
+    vscode.workspace.getConfiguration("zemdomu", resource);
 
   const devMode = cfg().get("devMode", false) as boolean;
   let verboseLogging = cfg().get("enableVerboseLogging", false) as boolean;
@@ -1776,12 +1842,31 @@ export function activate(context: vscode.ExtensionContext) {
   const perfDiagnostics = new PerformanceDiagnostics(devMode);
   perfDiagnostics.reportBundleSize(context.extensionPath);
 
-  // Single ProjectLinter instance, rebuilt when settings change
-  let core: ProjectLinter | null = null;
-  let workspaceLinted = false;
+  function workspaceFolderForUri(uri: vscode.Uri): vscode.WorkspaceFolder | undefined {
+    const getWorkspaceFolder = vscode.workspace.getWorkspaceFolder;
+    if (typeof getWorkspaceFolder === "function") {
+      const folder = getWorkspaceFolder(uri);
+      if (folder) return folder;
+    }
+    const target = path.resolve(uri.fsPath).toLowerCase();
+    return [...(vscode.workspace.workspaceFolders ?? [])]
+      .filter((folder) => {
+        const root = path.resolve(folder.uri.fsPath).toLowerCase();
+        return target === root || target.startsWith(`${root}${path.sep}`);
+      })
+      .sort((a, b) => b.uri.fsPath.length - a.uri.fsPath.length)[0];
+  }
 
-  function buildOptions(): ProjectLinterOptions {
-    const c = cfg();
+  function analysisRoot(resource?: vscode.Uri): string {
+    if (!resource) return process.cwd();
+    return workspaceFolderForUri(resource)?.uri.fsPath ?? path.dirname(resource.fsPath);
+  }
+
+  function buildOptions(
+    resource?: vscode.Uri,
+    rootDir = analysisRoot(resource)
+  ): ProjectLinterOptions {
+    const c = cfg(resource);
 
     const rules: Record<string, "off" | "warning" | "error"> = {};
     for (const name of RULE_NAMES) {
@@ -1794,15 +1879,14 @@ export function activate(context: vscode.ExtensionContext) {
       }
     }
 
-    const crossComponentAnalysis = c.get(
+    const requestedCrossComponentAnalysis = c.get(
       "crossComponentAnalysis",
       true
     ) as boolean;
+    const crossComponentAnalysis = resource && !workspaceFolderForUri(resource)
+      ? false
+      : requestedCrossComponentAnalysis;
     const crossComponentDepth = c.get("crossComponentDepth", 50) as number;
-    const rootOverride = (c.get("rootDir", "") as string) || "";
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    const rootDir = rootOverride || workspaceRoot || process.cwd();
-
     const opts: ProjectLinterOptions = {
       rules,
       crossComponentAnalysis,
@@ -1817,15 +1901,19 @@ export function activate(context: vscode.ExtensionContext) {
     return opts;
   }
 
-  function ruleSeverity(rule: string): vscode.DiagnosticSeverity {
-    const sev = cfg().get(`severity.${rule}`, "warning") as "warning" | "error";
+  function ruleSeverity(
+    rule: string,
+    resource?: vscode.Uri
+  ): vscode.DiagnosticSeverity {
+    const sev = cfg(resource).get(`severity.${rule}`, "warning") as
+      | "warning"
+      | "error";
     return sev === "error"
       ? vscode.DiagnosticSeverity.Error
       : vscode.DiagnosticSeverity.Warning;
   }
 
   function rebuildCore() {
-    core = new ProjectLinter(buildOptions());
     try {
       // helpful when debugging packaging issues
       // @ts-ignore
@@ -1949,38 +2037,127 @@ export function activate(context: vscode.ExtensionContext) {
       }
     }
 
-    // Dedupe + stable order per file (preserve empty entries for clearing diagnostics)
+    // Preserve every Core finding. Repeated violations can legitimately share a
+    // rule, message, and source line, especially in compact HTML.
     const out = new Map<string, LintResult[]>();
     for (const [fp, results] of remapped.entries()) {
-      const seen = new Set<string>();
-      const unique: LintResult[] = [];
-      for (const r of stableSort(results)) {
-        const k = keyLint(r);
-        if (!seen.has(k)) {
-          seen.add(k);
-          unique.push(r);
-        }
-      }
-      out.set(fp, unique);
+      out.set(fp, stableSort(results));
     }
 
     return out;
   }
 
-  async function lintEntries(entryUris: vscode.Uri[]) {
-    if (!core) rebuildCore();
+  async function sourceForFile(
+    filePath: string,
+    contentOverrides?: Map<string, string>
+  ): Promise<string | null> {
+    const override = contentOverrides?.get(path.resolve(filePath).toLowerCase());
+    if (override !== undefined) return override;
+    try {
+      return await fs.readFile(filePath, "utf8");
+    } catch {
+      return null;
+    }
+  }
 
-    const entries = entryUris
-      .map((u) => u.fsPath)
-      .filter(
-        (p) =>
-          !/[\\/]node_modules[\\/]/.test(p) && !/[\\/](dist|out)[\\/]/.test(p)
+  async function applyInlineControls(
+    map: Map<string, LintResult[]>,
+    contentOverrides?: Map<string, string>
+  ): Promise<Map<string, LintResult[]>> {
+    const filtered = new Map<string, LintResult[]>();
+    await Promise.all(
+      Array.from(map.entries()).map(async ([filePath, results]) => {
+        const source = await sourceForFile(filePath, contentOverrides);
+        if (source === null) {
+          filtered.set(filePath, results);
+          return;
+        }
+
+        let kept = applyInlineDisableDirectives(source, results);
+        if (path.extname(filePath).toLowerCase() === ".vue") {
+          const template = getVueTemplateRange(source);
+          const legacyTemplateResults = results.filter(
+            (result) => !Number.isFinite((result as LintResultWithCode).offset)
+          );
+          if (template && legacyTemplateResults.length > 0) {
+            const templateKept = new Set(
+              applyInlineDisableDirectives(
+                source.slice(template.start, template.end),
+                legacyTemplateResults
+              )
+            );
+            kept = kept.filter(
+              (result) =>
+                Number.isFinite((result as LintResultWithCode).offset) ||
+                templateKept.has(result)
+            );
+          }
+        }
+        filtered.set(filePath, kept);
+      })
+    );
+    return filtered;
+  }
+
+  type LintGroup = {
+    resource: vscode.Uri;
+    rootDir: string;
+    entries: vscode.Uri[];
+  };
+
+  function groupLintEntries(entryUris: vscode.Uri[]): LintGroup[] {
+    const groups = new Map<string, LintGroup>();
+    for (const uri of entryUris) {
+      const folder = workspaceFolderForUri(uri);
+      const rootDir = analysisRoot(uri);
+      const key = `${folder?.uri.fsPath ?? uri.fsPath}\0${rootDir}`.toLowerCase();
+      const existing = groups.get(key);
+      if (existing) existing.entries.push(uri);
+      else groups.set(key, { resource: uri, rootDir, entries: [uri] });
+    }
+    return Array.from(groups.values()).sort((a, b) =>
+      a.rootDir.localeCompare(b.rootDir)
+    );
+  }
+
+  async function lintProjectGroups(
+    entryUris: vscode.Uri[]
+  ): Promise<Map<string, LintResult[]>> {
+    const aggregated = new Map<string, LintResult[]>();
+    // Construct and consume each linter as one sequential unit. This keeps
+    // shipped Core versions with process-wide resolver state isolated by root.
+    for (const group of groupLintEntries(entryUris)) {
+      const groupCore = new ProjectLinter(
+        buildOptions(group.resource, group.rootDir)
       );
+      const groupMap = await groupCore.lintFiles(
+        group.entries.map((entry) => entry.fsPath)
+      );
+      const remapped = buildRemappedResults(await applyInlineControls(groupMap));
+      for (const [filePath, results] of remapped) {
+        if (!aggregated.has(filePath)) aggregated.set(filePath, []);
+        aggregated.get(filePath)!.push(...results);
+      }
+    }
+    return new Map(
+      Array.from(aggregated, ([filePath, results]) => [
+        filePath,
+        stableSort(results),
+      ])
+    );
+  }
 
-    if (entries.length === 0 || !core) return;
+  async function lintEntries(entryUris: vscode.Uri[]) {
+    const eligibleUris = entryUris.filter(
+      (uri) =>
+        !/[\\/]node_modules[\\/]/.test(uri.fsPath) &&
+        !/[\\/](dist|out)[\\/]/.test(uri.fsPath)
+    );
+    const entries = eligibleUris.map((uri) => uri.fsPath);
+
+    if (entries.length === 0) return;
 
     const runId = ++globalRunId; // snapshot run id for this pass
-    const thisCore = core; // snapshot core to avoid mid-run swaps
     const t0 = Date.now();
     verboseEvent({
       event: "lintRunStart",
@@ -1991,10 +2168,24 @@ export function activate(context: vscode.ExtensionContext) {
       uris: verboseLogging ? entryUris.map((u) => u.toString()) : undefined,
     });
 
-    const map = await thisCore!.lintFiles(entries).catch((e) => {
-      console.error("[ZemDomu] lintFiles error:", e);
-      return new Map<string, LintResult[]>();
-    });
+    let map: Map<string, LintResult[]>;
+    try {
+      map = await lintProjectGroups(eligibleUris);
+    } catch (error) {
+      console.error("[ZemDomu] lintFiles error:", error);
+      log.appendLine(
+        `Document lint failed for ${entries.join(", ")}: ${
+          error instanceof Error ? error.stack ?? error.message : String(error)
+        }`
+      );
+      verboseEvent({
+        event: "lintRunFailed",
+        scope: "entries",
+        runId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
 
     // Bail if a newer run started after this one
     if (runId !== globalRunId) {
@@ -2007,7 +2198,7 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
-    const remapped = buildRemappedResults(map);
+    const remapped = map;
 
     // Only update diagnostics for files we touched this run
     let runDiagnostics = 0;
@@ -2017,7 +2208,7 @@ export function activate(context: vscode.ExtensionContext) {
       const doc = vscode.workspace.textDocuments.find(
         (d) => d.uri.fsPath === fp
       );
-      const diags = toDiagnostics(results, ruleSeverity);
+      const diags = toDiagnostics(results, (rule) => ruleSeverity(rule, uri));
       const etag = docEtag(doc);
       publishDiagnostics(runId, uri, results, diags, etag);
       runDiagnostics += results.length;
@@ -2048,11 +2239,71 @@ export function activate(context: vscode.ExtensionContext) {
     });
   }
 
+  async function lintDocumentBuffer(doc: vscode.TextDocument) {
+    const runId = ++globalRunId;
+    const t0 = Date.now();
+    verboseEvent({
+      event: "lintRunStart",
+      scope: "documentBuffer",
+      runId,
+      filePath: doc.uri.fsPath,
+      etag: docEtag(doc),
+      startedAt: new Date(t0).toISOString(),
+    });
+
+    try {
+      const documentCore = new ProjectLinter(buildOptions(doc.uri));
+      const documentMap = await documentCore.lintFile(
+        doc.uri.fsPath,
+        doc.getText()
+      );
+      const filtered = buildRemappedResults(
+        await applyInlineControls(
+          documentMap,
+          new Map([[path.resolve(doc.uri.fsPath).toLowerCase(), doc.getText()]])
+        )
+      );
+      const results = stableSort(filtered.get(doc.uri.fsPath) ?? []);
+
+      if (runId !== globalRunId) {
+        verboseEvent({
+          event: "lintRunDiscarded",
+          scope: "documentBuffer",
+          runId,
+          stage: "postCompute",
+        });
+        return;
+      }
+
+      const diags = toDiagnostics(results, (rule) => ruleSeverity(rule, doc.uri));
+      publishDiagnostics(runId, doc.uri, results, diags, docEtag(doc));
+      log.appendLine(
+        `Linted unsaved buffer ${path.basename(doc.uri.fsPath)} in ${
+          Date.now() - t0
+        }ms. Diagnostics: ${results.length}.`
+      );
+      verboseEvent({
+        event: "lintRunComplete",
+        scope: "documentBuffer",
+        runId,
+        filePath: doc.uri.fsPath,
+        diagnosticsPublished: results.length,
+        durationMs: Date.now() - t0,
+        finishedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("[ZemDomu] buffer lint error:", error);
+      log.appendLine(
+        `Buffer lint failed for ${doc.uri.fsPath}: ${
+          error instanceof Error ? error.stack ?? error.message : String(error)
+        }`
+      );
+    }
+  }
+
   async function lintWorkspaceAtomic() {
     issueTracker.beginScan("Scanning workspace for ZemDomu issues...");
     try {
-      core?.clear();
-
       const include = "**/*.{html,jsx,tsx,vue}";
       const exclude = "{**/node_modules/**,**/dist/**,**/out/**,**/.git/**}";
 
@@ -2088,10 +2339,7 @@ export function activate(context: vscode.ExtensionContext) {
       });
 
       const t0 = Date.now();
-      const thisCore = core ?? new ProjectLinter(buildOptions());
-      const map = await thisCore
-        .lintFiles(files.map((f) => f.fsPath))
-        .catch(() => new Map<string, LintResult[]>());
+      const map = await lintProjectGroups(files);
       if (runId !== globalRunId) {
         verboseEvent({
           event: "lintRunDiscarded",
@@ -2102,7 +2350,7 @@ export function activate(context: vscode.ExtensionContext) {
         return; // lost after compute
       }
 
-      const remapped = buildRemappedResults(map);
+      const remapped = map;
 
       // Apply atomically: delete stale, then set new
       const updatedFiles = new Set(remapped.keys());
@@ -2125,7 +2373,7 @@ export function activate(context: vscode.ExtensionContext) {
         const doc = vscode.workspace.textDocuments.find(
           (d) => d.uri.fsPath === fp
         );
-        const diags = toDiagnostics(results, ruleSeverity);
+        const diags = toDiagnostics(results, (rule) => ruleSeverity(rule, uri));
         const etag = docEtag(doc);
         publishDiagnostics(runId, uri, results, diags, etag);
         runDiagnostics += results.length;
@@ -2135,8 +2383,6 @@ export function activate(context: vscode.ExtensionContext) {
           }
         }
       }
-
-      workspaceLinted = true;
 
       const total = Array.from(diagCache.values()).reduce(
         (n, e) => n + e.diags.length,
@@ -2182,6 +2428,16 @@ export function activate(context: vscode.ExtensionContext) {
           `Slowest phase: ${slowPhase} ${slowPhaseTime.toFixed(2)}ms`
         );
       }
+    } catch (error) {
+      const details =
+        error instanceof Error ? error.stack ?? error.message : String(error);
+      log.appendLine(`Workspace scan failed: ${details}`);
+      verboseEvent({
+        event: "lintRunFailed",
+        scope: "workspace",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     } finally {
       issueTracker.finishScan();
     }
@@ -2207,6 +2463,10 @@ export function activate(context: vscode.ExtensionContext) {
   function updateListeners() {
     saveDisp?.dispose();
     typeDisp?.dispose();
+    if (typeTimer) {
+      clearTimeout(typeTimer);
+      typeTimer = undefined;
+    }
 
     const mode = cfg().get("run", "onSave") as
       | "onSave"
@@ -2216,19 +2476,17 @@ export function activate(context: vscode.ExtensionContext) {
 
     if (mode === "onSave") {
       saveDisp = vscode.workspace.onDidSaveTextDocument(async (doc) => {
-        if (workspaceLinted) await lintSingle(doc);
-        else scheduleWorkspaceLint();
+        await lintSingle(doc);
       });
     } else if (mode === "onType") {
       typeDisp = vscode.workspace.onDidChangeTextDocument((evt) => {
         clearTimeout(typeTimer as any);
         typeTimer = setTimeout(async () => {
-          if (workspaceLinted) await lintSingle(evt.document);
-          else scheduleWorkspaceLint();
+          await lintDocumentBuffer(evt.document);
         }, 150); // tweakable debounce
       });
     } else {
-      log.appendLine("Auto-lint disabled (manual mode).");
+      log.appendLine(`Auto-lint disabled (${mode} mode).`);
     }
   }
 
@@ -2239,28 +2497,43 @@ export function activate(context: vscode.ExtensionContext) {
       return vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: "ZemDomu: ScanningΓÇª",
+          title: "ZemDomu: Scanning...",
           cancellable: false,
         },
         async (progress) => {
           const slow = setTimeout(
             () =>
               vscode.window.showInformationMessage(
-                "ZemDomu is scanning the workspaceΓÇª"
+                "ZemDomu is scanning the workspace..."
               ),
             5000
           );
-          progress.report({ increment: 0 });
-          scheduleWorkspaceLint();
-          // Wait for the currently running/queued scan to finish if any
-          while (runningWorkspace) {
-            try {
-              await runningWorkspace;
-            } catch {}
+          try {
+            progress.report({ increment: 0 });
+            scheduleWorkspaceLint();
+            // Wait for the currently running/queued scan to finish if any.
+            // Retain the first error so a queued retry cannot mask failure.
+            let scanError: unknown;
+            while (runningWorkspace) {
+              try {
+                await runningWorkspace;
+              } catch (error) {
+                scanError ??= error;
+              }
+            }
+            if (scanError) throw scanError;
+            progress.report({ increment: 100 });
+            return "Scan complete";
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            await vscode.window.showErrorMessage(
+              `ZemDomu scan failed: ${message}. See the ZemDomu output channel for details.`
+            );
+            throw error;
+          } finally {
+            clearTimeout(slow);
           }
-          clearTimeout(slow);
-          progress.report({ increment: 100 });
-          return "Scan complete";
         }
       );
     }
@@ -2280,10 +2553,10 @@ export function activate(context: vscode.ExtensionContext) {
       log.appendLine(`Verbose logging ${verboseLogging ? "enabled" : "disabled"}.`);
     }
 
-    // Rebuild linter with new options and relint
+    // Rebuild the linter and rewire events. Each run mode waits for its own
+    // public trigger; configuration changes must not launch an implicit scan.
     rebuildCore();
     updateListeners();
-    scheduleWorkspaceLint();
   });
 
   const actionProvider = vscode.languages.registerCodeActionsProvider(
@@ -2300,22 +2573,15 @@ export function activate(context: vscode.ExtensionContext) {
     issueTracker,
     { dispose: () => saveDisp?.dispose() },
     { dispose: () => typeDisp?.dispose() },
+    {
+      dispose: () => {
+        if (typeTimer) clearTimeout(typeTimer);
+      },
+    },
     log
   );
 
   updateListeners();
-
-  // First pass after a short delay, but only if not onSave mode to avoid collision with first save
-  const mode = cfg().get("run", "onSave") as
-    | "onSave"
-    | "onType"
-    | "manual"
-    | "disabled";
-  if (mode !== "onSave") {
-    setTimeout(() => {
-      scheduleWorkspaceLint();
-    }, 750);
-  }
 
   log.appendLine("ZemDomu extension activated");
   console.log("ZemDomu extension is now active");

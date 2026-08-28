@@ -1,0 +1,47 @@
+name: Performance regression
+description: Report slower activation, linting, workspace scans, or increased memory use.
+title: "[Performance]: "
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: ZemDomu and VS Code versions
+      placeholder: ZemDomu 0.0.17, VS Code 1.105.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Hardware and operating system
+      placeholder: Windows 11, Ryzen 7 5800X, 32 GB RAM
+    validations:
+      required: true
+  - type: textarea
+    id: workspace
+    attributes:
+      label: Workspace profile
+      description: Provide approximate HTML/JSX/TSX/Vue file counts, total size, workspace roots, and relevant settings.
+    validations:
+      required: true
+  - type: textarea
+    id: measurements
+    attributes:
+      label: Measurements
+      description: Include operation, run count, median/p95 when available, peak RSS, previous version result, and current result.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Performance diagnostics
+      description: Paste sanitized ZemDomu Perf or verbose output-channel details.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I reproduced this with the latest available ZemDomu version.
+          required: true
+        - label: I removed credentials, private code, and personal data.
+          required: true

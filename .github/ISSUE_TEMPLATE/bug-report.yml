@@ -1,0 +1,62 @@
+name: Bug report
+description: Report a crash, broken command, incorrect quick fix, or other extension defect.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve ZemDomu. Remove private code, credentials, and personal data before submitting.
+  - type: input
+    id: extension-version
+    attributes:
+      label: ZemDomu version
+      placeholder: 0.0.17
+    validations:
+      required: true
+  - type: input
+    id: vscode-version
+    attributes:
+      label: VS Code version
+      placeholder: 1.105.0
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - Linux
+        - macOS
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include the smallest safe HTML, JSX/TSX, or Vue example and exact steps.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the diagnostic code, command result, and relevant ZemDomu output-channel text.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I reproduced this with the latest available ZemDomu version.
+          required: true
+        - label: I removed credentials, private code, and personal data.
+          required: true

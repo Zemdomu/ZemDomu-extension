@@ -4,6 +4,7 @@ node_modules/
 # Build outputs (generated during tests/build)
 dist/
 out/
+.vscode-test/
 *.log
 
 # VS Code Extension build artifacts

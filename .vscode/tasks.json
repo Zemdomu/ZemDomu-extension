@@ -26,9 +26,9 @@
       "group": "build"
     },
     {
-      "label": "npm publish extension",
+      "label": "npm release package",
       "type": "shell",
-      "command": "npm install && npm run compile && npm run package",
+      "command": "npm run release",
       "group": { "kind": "build", "isDefault": true }
     }
   ]

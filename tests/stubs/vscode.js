@@ -210,7 +210,14 @@ const registeredCommands = new Map();
 const diagnosticCollections = new Map();
 const codeActionProviders = [];
 const configurationListeners = new Set();
+const saveListeners = new Set();
+const textChangeListeners = new Set();
 const findFileRegistry = new Map();
+let findFilesCalls = 0;
+let findFilesError = null;
+const outputChannels = new Map();
+const errorMessages = [];
+const statusBarItems = [];
 
 const StatusBarAlignment = Object.freeze({
   Left: 1,
@@ -311,6 +318,23 @@ const workspace = {
     configValues.set(key, value);
   },
 
+  async __fireDidChangeConfiguration(keys) {
+    const changed = Array.isArray(keys) ? keys : [keys];
+    const event = {
+      affectsConfiguration(section) {
+        return changed.some(
+          key =>
+            key === section ||
+            key.startsWith(`${section}.`) ||
+            section.startsWith(`${key}.`)
+        );
+      },
+    };
+    await Promise.all(
+      Array.from(configurationListeners, listener => Promise.resolve(listener(event)))
+    );
+  },
+
   __resetConfiguration() {
     configValues.clear();
     primeConfigDefaults();
@@ -324,6 +348,8 @@ const workspace = {
   },
 
   findFiles(pattern) {
+    findFilesCalls += 1;
+    if (findFilesError) return Promise.reject(findFilesError);
     const entries = findFileRegistry.get(pattern);
     if (entries) return Promise.resolve(entries.map(ensureUri));
 
@@ -355,26 +381,56 @@ const workspace = {
     findFileRegistry.set(pattern, filePaths.map(p => ensureUri(p)));
   },
 
+  __getFindFilesCallCount() {
+    return findFilesCalls;
+  },
+
+  __setFindFilesError(error) {
+    findFilesError = error;
+  },
+
   openTextDocument(uri) {
     const actualUri = ensureUri(uri);
-    const text = fs.readFileSync(actualUri.fsPath, 'utf8');
-    const lines = text.split(/\r?\n/);
+    let text = fs.readFileSync(actualUri.fsPath, 'utf8');
+    let version = 1;
     const doc = {
       uri: actualUri,
       languageId: guessLanguageId(actualUri.fsPath),
       getText: () => text,
-      lineAt: index => ({ text: lines[index] ?? '' }),
+      lineAt: index => ({ text: text.split(/\r?\n/)[index] ?? '' }),
+      get version() {
+        return version;
+      },
+      __setText(value) {
+        text = String(value);
+        version += 1;
+      },
     };
     this.textDocuments.push(doc);
     return Promise.resolve(doc);
   },
 
-  onDidSaveTextDocument() {
-    return new Disposable();
+  onDidSaveTextDocument(listener) {
+    saveListeners.add(listener);
+    return new Disposable(() => saveListeners.delete(listener));
   },
 
-  onDidChangeTextDocument() {
-    return new Disposable();
+  async __fireDidSaveTextDocument(doc) {
+    await Promise.all(
+      Array.from(saveListeners, listener => Promise.resolve(listener(doc)))
+    );
+  },
+
+  onDidChangeTextDocument(listener) {
+    textChangeListeners.add(listener);
+    return new Disposable(() => textChangeListeners.delete(listener));
+  },
+
+  async __fireDidChangeTextDocument(doc) {
+    const event = { document: doc, contentChanges: [] };
+    await Promise.all(
+      Array.from(textChangeListeners, listener => Promise.resolve(listener(event)))
+    );
   },
 
   onDidChangeConfiguration(listener) {
@@ -386,6 +442,7 @@ const workspace = {
 const window = {
   createStatusBarItem() {
     const item = new StatusBarItem();
+    statusBarItems.push(item);
     return item;
   },
 
@@ -408,12 +465,27 @@ const window = {
     return Promise.resolve(undefined);
   },
 
-  showErrorMessage() {
+  showErrorMessage(message) {
+    errorMessages.push(String(message));
     return Promise.resolve(undefined);
   },
 
   createOutputChannel(name) {
-    return new OutputChannel(name);
+    const channel = new OutputChannel(name);
+    outputChannels.set(name, channel);
+    return channel;
+  },
+
+  __getErrorMessages() {
+    return errorMessages.slice();
+  },
+
+  __getOutputChannel(name) {
+    return outputChannels.get(name);
+  },
+
+  __getStatusBarItems() {
+    return statusBarItems.slice();
   },
 };
 
@@ -495,6 +567,13 @@ module.exports = {
     workspace.__setWorkspaceFolders([]);
     workspace.textDocuments = [];
     findFileRegistry.clear();
+    findFilesCalls = 0;
+    findFilesError = null;
     configurationListeners.clear();
+    saveListeners.clear();
+    textChangeListeners.clear();
+    outputChannels.clear();
+    errorMessages.splice(0, errorMessages.length);
+    statusBarItems.splice(0, statusBarItems.length);
   },
 };

@@ -15,6 +15,7 @@ tsconfig.json
 # Build/test/config files
 .vscode/
 .vscode-test/
+*.vsix
 *.map
 *.test.*
 *.spec.*

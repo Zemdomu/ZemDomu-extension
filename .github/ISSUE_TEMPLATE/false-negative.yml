@@ -1,0 +1,55 @@
+name: False negative
+description: Report an expected ZemDomu diagnostic that is missing.
+title: "[False negative]: "
+body:
+  - type: input
+    id: expected-rule
+    attributes:
+      label: Expected rule and diagnostic code
+      placeholder: requireLabelForFormControls / ZMD005
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: ZemDomu and VS Code versions
+      placeholder: ZemDomu 0.0.17, VS Code 1.105.0
+    validations:
+      required: true
+  - type: dropdown
+    id: syntax
+    attributes:
+      label: Syntax
+      options:
+        - HTML
+        - JSX
+        - TSX
+        - Vue
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Minimal failing example
+      description: Remove private code and include imported components when cross-component behavior matters.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: reasoning
+    attributes:
+      label: Why a diagnostic is expected
+      description: Include the standard, rule documentation, or known-bad behavior that applies.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: The rule is enabled and its severity is configured.
+          required: true
+        - label: I saved the file or manually scanned the workspace for the selected run mode.
+          required: true
+        - label: I removed credentials, private code, and personal data.
+          required: true
