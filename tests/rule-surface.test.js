@@ -2,14 +2,27 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-function readRuleCodes() {
+function readCoreRuleSurface() {
   const source = fs.readFileSync(
     path.resolve(__dirname, '../../ZemDomu-Core/src/rule-codes.ts'),
     'utf8'
   );
   const body = source.match(/const RULE_CODES = \{([\s\S]*?)\} as const/);
   assert.ok(body, 'Expected to find Core RULE_CODES');
-  return [...body[1].matchAll(/\n  (\w+):/g)].map((match) => match[1]);
+  const pageOnlyBody = source.match(
+    /export const PAGE_ONLY_RULES = \[([\s\S]*?)\] as const/
+  );
+  assert.ok(pageOnlyBody, 'Expected to find Core PAGE_ONLY_RULES');
+  const allRules = [...body[1].matchAll(/\n  (\w+):/g)].map((match) => match[1]);
+  const pageOnlyRules = [
+    ...pageOnlyBody[1].matchAll(/["']([^"']+)["']/g),
+  ].map((match) => match[1]);
+  const pageOnlySet = new Set(pageOnlyRules);
+  return {
+    allRules,
+    pageOnlyRules,
+    extensionRules: allRules.filter((rule) => !pageOnlySet.has(rule)),
+  };
 }
 
 function readExtensionRuleNames() {
@@ -29,7 +42,8 @@ function readDocumentedRules(relativePath) {
   return [...section.matchAll(/^- `([^`]+)`\s*$/gm)].map(match => match[1]);
 }
 
-const coreRules = readRuleCodes();
+const coreRuleSurface = readCoreRuleSurface();
+const extensionEligibleRules = coreRuleSurface.extensionRules;
 const extensionRules = readExtensionRuleNames();
 const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')
@@ -44,14 +58,26 @@ const configuredSeverities = Object.keys(properties)
 const readmeRules = readDocumentedRules('README.md');
 const marketplaceRules = readDocumentedRules('docs/USER_GUIDE.md');
 
-assert.deepStrictEqual(extensionRules, coreRules, 'Extension RULE_NAMES must match Core RULE_CODES');
-assert.deepStrictEqual(configuredRules, coreRules, 'Extension rule settings must match Core RULE_CODES');
+assert.deepStrictEqual(
+  extensionRules,
+  extensionEligibleRules,
+  'Extension RULE_NAMES must match Core non-page-only RULE_CODES'
+);
+assert.deepStrictEqual(
+  configuredRules,
+  extensionEligibleRules,
+  'Extension rule settings must match Core non-page-only RULE_CODES'
+);
 assert.deepStrictEqual(
   configuredSeverities,
-  coreRules,
-  'Extension severity settings must match Core RULE_CODES'
+  extensionEligibleRules,
+  'Extension severity settings must match Core non-page-only RULE_CODES'
 );
-assert.deepStrictEqual(readmeRules, coreRules, 'README supported rules must match Core RULE_CODES');
+assert.deepStrictEqual(
+  readmeRules,
+  extensionEligibleRules,
+  'README supported rules must match Core non-page-only RULE_CODES'
+);
 assert.strictEqual(
   packageJson.readme,
   'docs/USER_GUIDE.md',
@@ -59,8 +85,18 @@ assert.strictEqual(
 );
 assert.deepStrictEqual(
   marketplaceRules,
-  coreRules,
-  'User guide and Marketplace supported rules must match Core RULE_CODES'
+  extensionEligibleRules,
+  'User guide and Marketplace supported rules must match Core non-page-only RULE_CODES'
 );
+for (const pageOnlyRule of coreRuleSurface.pageOnlyRules) {
+  assert.ok(
+    coreRuleSurface.allRules.includes(pageOnlyRule),
+    `Core page-only rule ${pageOnlyRule} must have a canonical rule code`
+  );
+  assert.ok(
+    !extensionRules.includes(pageOnlyRule),
+    `Extension must not advertise page-only rule ${pageOnlyRule} before adopting page diagnostics`
+  );
+}
 
 console.log('Rule surface tests passed');
