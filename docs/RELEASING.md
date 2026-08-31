@@ -2,6 +2,13 @@
 
 ## Release checks
 
+The pre-publish gate runs the real Extension Host suite on Windows and Linux
+against both VS Code 1.105.0, the oldest supported release, and the current
+stable release. macOS is explicitly deferred for the 1.0 release because the
+extension has no platform-native runtime dependency and the two operating
+systems cover both supported CI shell families. Add macOS before release if a
+platform-specific dependency or defect is discovered.
+
 1. Release ZemDomu Core first when the extension needs a new Core version.
 2. Update `package.json` and `package-lock.json` to the intended extension
    version and add the customer-facing changes to `CHANGELOG.md`.
@@ -10,8 +17,9 @@
    keeps the bundle below 5 MiB, keeps the VSIX below 2 MiB, inspects the
    archive contents, installs the VSIX in a clean profile, and activates that
    installed artifact in a real VS Code Extension Host.
-5. Create and push the tag `v<package-version>`. The publish workflow rejects
-   any tag that does not exactly match `package.json`.
+5. Create and push the tag `v<package-version>`. The publish workflow reruns
+   the Windows/Linux and oldest/stable Extension Host matrix, and rejects any
+   tag that does not exactly match `package.json`.
 6. Confirm the publish workflow uploads `dist/zemdomu.vsix`, then install the
    Marketplace build in a clean profile for the final release smoke check.
 
