@@ -8,6 +8,12 @@ import type { ProjectLinterOptions, LintResult } from "zemdomu";
 import { PerformanceDiagnostics } from "./performance-diagnostics";
 import { IssueTracker } from "./issue-tracker";
 import { applyInlineDisableDirectives } from "./linter";
+import {
+  canonicalDiagnosticToVscode,
+  isCanonicalLintResult,
+  lintProjectForPresentation,
+} from "./diagnostic-adapter";
+import type { PageAwareProjectLinter } from "./diagnostic-adapter";
 
 /**
  * Race-safe, queued, and atomic application of diagnostics.
@@ -65,6 +71,7 @@ const RULE_NAMES = [
   "requireDocumentTitle",
   "requireSingleMain",
   "ariaValidAttrValue",
+  "requirePageH1",
 ] as const;
 
 const DOCS_RULES = new Set<string>(RULE_NAMES);
@@ -181,11 +188,27 @@ function equalDiagnostics(
       x.range.start.line !== y.range.start.line ||
       x.range.start.character !== y.range.start.character ||
       x.range.end.line !== y.range.end.line ||
-      x.range.end.character !== y.range.end.character
+      x.range.end.character !== y.range.end.character ||
+      diagnosticRelatedKey(x) !== diagnosticRelatedKey(y)
     )
       return false;
   }
   return true;
+}
+
+function diagnosticRelatedKey(diagnostic: vscode.Diagnostic): string {
+  return (diagnostic.relatedInformation ?? [])
+    .map((related) =>
+      [
+        related.location.uri.toString(),
+        related.location.range.start.line,
+        related.location.range.start.character,
+        related.location.range.end.line,
+        related.location.range.end.character,
+        related.message,
+      ].join("|")
+    )
+    .join("\n");
 }
 
 function diagnosticCodeValue(
@@ -1278,6 +1301,12 @@ export function activate(context: vscode.ExtensionContext) {
     ruleSeverity: (r: string) => vscode.DiagnosticSeverity
   ): vscode.Diagnostic[] {
     return results.map((r) => {
+      if (isCanonicalLintResult(r)) {
+        return canonicalDiagnosticToVscode(
+          r.canonicalDiagnostic,
+          docsUriForRule(r.rule)
+        );
+      }
       const rWithCode = r as LintResultWithCode;
       const line = Number.isFinite(r.line) ? r.line : 0;
       const col = Number.isFinite(r.column) ? r.column : 0;
@@ -1371,7 +1400,11 @@ export function activate(context: vscode.ExtensionContext) {
         let target = r.filePath ?? fp;
         let adjusted: LintResult = r.filePath ? r : { ...r, filePath: target };
 
-        if (r.rule === "singleH1" && (!r.filePath || r.filePath === fp)) {
+        if (
+          !isCanonicalLintResult(r) &&
+          r.rule === "singleH1" &&
+          (!r.filePath || r.filePath === fp)
+        ) {
           const m = r.message.match(/component '([^']+)'/);
           if (m) {
             const name = m[1];
@@ -1490,8 +1523,10 @@ export function activate(context: vscode.ExtensionContext) {
       const groupCore = new ProjectLinter(
         buildOptions(group.resource, group.rootDir)
       );
-      const groupMap = await groupCore.lintFiles(
-        group.entries.map((entry) => entry.fsPath)
+      const entryPaths = group.entries.map((entry) => entry.fsPath);
+      const groupMap = await lintProjectForPresentation(
+        groupCore as unknown as PageAwareProjectLinter,
+        entryPaths
       );
       const remapped = buildRemappedResults(await applyInlineControls(groupMap));
       for (const [filePath, results] of remapped) {

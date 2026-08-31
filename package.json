@@ -182,6 +182,11 @@
           "default": true,
           "description": "Warn when supported ARIA attributes use invalid static values."
         },
+        "zemdomu.rules.requirePageH1": {
+          "type": "boolean",
+          "default": true,
+          "description": "Advisory: warn when a composed page has no deterministically resolved H1 heading."
+        },
         "zemdomu.severity.requireSectionHeading": {
           "type": "string",
           "enum": [
@@ -370,6 +375,15 @@
           ],
           "default": "warning",
           "description": "Severity for the ariaValidAttrValue rule."
+        },
+        "zemdomu.severity.requirePageH1": {
+          "type": "string",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "default": "warning",
+          "description": "Severity for the requirePageH1 rule."
         }
       }
     }
@@ -381,7 +395,7 @@
     "vscode:prepublish": "npm test && npm run bundle",
     "package": "vsce package --no-dependencies --out dist/zemdomu.vsix && node tests/package-contents.test.js && node tests/package-size.test.js --vsix",
     "test:rule-oracle": "node tests/run-rule-oracle.js",
-    "test": "npm run compile && npm run bundle && node tests/run-modes.test.js && node tests/issue-tracker.test.js && node tests/race-stress.test.js && node tests/inline-disable.test.js && node tests/multi-root.test.js && node tests/linter-labels.test.js && node tests/all-rules.test.js && node tests/rule-surface.test.js && node tests/unique-ids.test.js && node tests/cross-component-extension.test.js && node tests/extension-cross-component.test.js && node tests/vue-extension.test.js && node tests/quick-fixes.test.js && node tests/full-document-quick-fixes.test.js && node tests/fixture-behavior.test.js && node tests/user-facing-text.test.js && node tests/smoke-test.test.js && node tests/npm-link.test.js && node tests/package-size.test.js --bundle && node tests/extension-host-exit.test.js",
+    "test": "npm run compile && npm run bundle && node tests/run-modes.test.js && node tests/issue-tracker.test.js && node tests/race-stress.test.js && node tests/inline-disable.test.js && node tests/multi-root.test.js && node tests/linter-labels.test.js && node tests/all-rules.test.js && node tests/rule-surface.test.js && node tests/canonical-diagnostics.test.js && node tests/unique-ids.test.js && node tests/cross-component-extension.test.js && node tests/extension-cross-component.test.js && node tests/vue-extension.test.js && node tests/quick-fixes.test.js && node tests/full-document-quick-fixes.test.js && node tests/fixture-behavior.test.js && node tests/user-facing-text.test.js && node tests/smoke-test.test.js && node tests/npm-link.test.js && node tests/package-size.test.js --bundle && node tests/extension-host-exit.test.js",
     "test:extension-host": "node tests/extension-host/run.js",
     "test:vsix-install": "node tests/install-vsix.test.js",
     "benchmark:workspace": "node tests/workspace-benchmark.js",

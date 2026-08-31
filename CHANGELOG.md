@@ -18,6 +18,7 @@
 
 ### Feature
 
+- Feature: present Core's canonical page-aware diagnostics in VS Code with rule codes, severity, page and component paths, related source locations, and conservative suggestions.
 - Feature: report workspace-scan discovery, analysis, publication, and completion phases with file counts and explicit screen-reader status labels.
 - Feature: expose `crossComponentDepth` as a supported setting and analyze each folder in a multi-root workspace as an independent project root.
 

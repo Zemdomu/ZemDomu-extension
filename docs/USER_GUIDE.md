@@ -74,6 +74,7 @@ Rules and per-rule severity:
 - `requireDocumentTitle`
 - `requireSingleMain`
 - `ariaValidAttrValue`
+- `requirePageH1`
 
 Inline disabling:
 
@@ -104,6 +105,10 @@ ZemDomu treats `singleH1` and `requireNavLinks` as house-style rules.
 `requireTableCaption` and `requireSectionHeading` are advisory by default;
 whether their guidance is required depends on the document and the conformance
 criteria that apply. Their default severity remains `warning`.
+`requirePageH1` is also advisory: it reports a missing first-level heading only
+when Core can resolve a composed page with enough confidence. Page identity,
+component path, related source locations, and conservative suggestions appear
+with the diagnostic when Core supplies them.
 
 `enforceHeadingOrder` compares each heading with the previous heading it can
 observe and warns only when a later heading skips upward levels. The first

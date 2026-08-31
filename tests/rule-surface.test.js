@@ -17,12 +17,7 @@ function readCoreRuleSurface() {
   const pageOnlyRules = [
     ...pageOnlyBody[1].matchAll(/["']([^"']+)["']/g),
   ].map((match) => match[1]);
-  const pageOnlySet = new Set(pageOnlyRules);
-  return {
-    allRules,
-    pageOnlyRules,
-    extensionRules: allRules.filter((rule) => !pageOnlySet.has(rule)),
-  };
+  return { allRules, pageOnlyRules };
 }
 
 function readExtensionRuleNames() {
@@ -43,7 +38,7 @@ function readDocumentedRules(relativePath) {
 }
 
 const coreRuleSurface = readCoreRuleSurface();
-const extensionEligibleRules = coreRuleSurface.extensionRules;
+const extensionEligibleRules = coreRuleSurface.allRules;
 const extensionRules = readExtensionRuleNames();
 const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')
@@ -94,8 +89,8 @@ for (const pageOnlyRule of coreRuleSurface.pageOnlyRules) {
     `Core page-only rule ${pageOnlyRule} must have a canonical rule code`
   );
   assert.ok(
-    !extensionRules.includes(pageOnlyRule),
-    `Extension must not advertise page-only rule ${pageOnlyRule} before adopting page diagnostics`
+    extensionRules.includes(pageOnlyRule),
+    `Extension must advertise page-only rule ${pageOnlyRule} after adopting page diagnostics`
   );
 }
 

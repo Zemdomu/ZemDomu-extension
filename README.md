@@ -127,6 +127,7 @@ Override severity per rule:
 - `requireDocumentTitle`
 - `requireSingleMain`
 - `ariaValidAttrValue`
+- `requirePageH1`
 
 ### Heading Rules
 
