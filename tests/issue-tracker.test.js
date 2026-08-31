@@ -47,11 +47,17 @@ function diagnostic(message) {
     assert.strictEqual(statusBar.name, 'ZemDomu Issues');
     assert.strictEqual(statusBar.command, 'zemdomu.lintWorkspace');
     assert.strictEqual(statusBar.text, 'ZemDomu: ready');
+    assert.ok(statusBar.accessibilityInformation.label.includes('ready'));
+    assert.strictEqual(statusBar.accessibilityInformation.role, 'button');
     assert.ok(statusBar.visible, 'status bar must be visible after activation');
 
     tracker.beginScan('Scanning launch fixture...');
     assert.strictEqual(statusBar.text, 'ZemDomu: scanning...');
     assert.strictEqual(statusBar.tooltip, 'Scanning launch fixture...');
+    assert.ok(statusBar.accessibilityInformation.label.includes('in progress'));
+
+    tracker.updateScanPhase('Analyzing 2 files...');
+    assert.strictEqual(statusBar.tooltip, 'Analyzing 2 files...');
 
     tracker.updateFile(first, [diagnostic('Missing alt')]);
     tracker.updateFile(second, [diagnostic('Missing title'), diagnostic('Missing main')]);
@@ -62,6 +68,7 @@ function diagnostic(message) {
 
     tracker.finishScan();
     assert.strictEqual(statusBar.text, 'ZemDomu: 3 issues');
+    assert.ok(statusBar.accessibilityInformation.label.includes('3 issues found'));
 
     tracker.removeFile(second);
     assert.strictEqual(statusBar.text, 'ZemDomu: 1 issue');
@@ -75,6 +82,11 @@ function diagnostic(message) {
     assert.strictEqual(statusBar.text, 'ZemDomu: scanning...');
     tracker.finishScan();
     assert.strictEqual(statusBar.text, 'ZemDomu: all clear');
+
+    tracker.beginScan('Discovering files...');
+    tracker.failScan('The scan did not complete.');
+    assert.strictEqual(statusBar.text, 'ZemDomu: scan failed');
+    assert.ok(statusBar.accessibilityInformation.label.includes('scan failed'));
 
     tracker.dispose();
     assert.ok(statusBar.disposed, 'disposing the tracker must dispose the status bar');

@@ -14,6 +14,7 @@
 
 ### Feature
 
+- Feature: report workspace-scan discovery, analysis, publication, and completion phases with file counts and explicit screen-reader status labels.
 - Feature: expose `crossComponentDepth` as a supported setting and analyze each folder in a multi-root workspace as an independent project root.
 
 ### Docs

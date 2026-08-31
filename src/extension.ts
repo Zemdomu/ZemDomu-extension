@@ -28,6 +28,18 @@ type LintResultWithCode = LintResult & {
   endOffset?: number;
 };
 
+type WorkspaceScanProgress = {
+  message: string;
+  completion: number;
+};
+
+type ProjectGroupProgress = {
+  completedGroups: number;
+  totalGroups: number;
+  currentGroup: number;
+  currentGroupFiles: number;
+};
+
 const DOCS_BASE_URL = "https://zemdomu.dev/docs/";
 const RULE_NAMES = [
   "requireSectionHeading",
@@ -1819,6 +1831,9 @@ export function activate(context: vscode.ExtensionContext) {
     100
   );
   const issueTracker = new IssueTracker(statusBarItem);
+  const workspaceProgressListeners = new Set<
+    (update: WorkspaceScanProgress) => void
+  >();
   const cfg = (resource?: vscode.Uri) =>
     vscode.workspace.getConfiguration("zemdomu", resource);
 
@@ -2121,12 +2136,21 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   async function lintProjectGroups(
-    entryUris: vscode.Uri[]
+    entryUris: vscode.Uri[],
+    onProgress?: (progress: ProjectGroupProgress) => void
   ): Promise<Map<string, LintResult[]>> {
     const aggregated = new Map<string, LintResult[]>();
+    const groups = groupLintEntries(entryUris);
     // Construct and consume each linter as one sequential unit. This keeps
     // shipped Core versions with process-wide resolver state isolated by root.
-    for (const group of groupLintEntries(entryUris)) {
+    for (let index = 0; index < groups.length; index += 1) {
+      const group = groups[index];
+      onProgress?.({
+        completedGroups: index,
+        totalGroups: groups.length,
+        currentGroup: index + 1,
+        currentGroupFiles: group.entries.length,
+      });
       const groupCore = new ProjectLinter(
         buildOptions(group.resource, group.rootDir)
       );
@@ -2138,6 +2162,12 @@ export function activate(context: vscode.ExtensionContext) {
         if (!aggregated.has(filePath)) aggregated.set(filePath, []);
         aggregated.get(filePath)!.push(...results);
       }
+      onProgress?.({
+        completedGroups: index + 1,
+        totalGroups: groups.length,
+        currentGroup: index + 1,
+        currentGroupFiles: group.entries.length,
+      });
     }
     return new Map(
       Array.from(aggregated, ([filePath, results]) => [
@@ -2302,7 +2332,18 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   async function lintWorkspaceAtomic() {
-    issueTracker.beginScan("Scanning workspace for ZemDomu issues...");
+    let scanCompleted = false;
+    const reportProgress = (message: string, completion: number) => {
+      const update = {
+        message,
+        completion: Math.max(0, Math.min(100, completion)),
+      };
+      issueTracker.updateScanPhase(message);
+      for (const listener of workspaceProgressListeners) listener(update);
+    };
+
+    issueTracker.beginScan("Discovering supported workspace files.");
+    reportProgress("Discovering supported workspace files...", 0);
     try {
       const include = "**/*.{html,jsx,tsx,vue}";
       const exclude = "{**/node_modules/**,**/dist/**,**/out/**,**/.git/**}";
@@ -2326,6 +2367,11 @@ export function activate(context: vscode.ExtensionContext) {
           runId,
           stage: "postFileEnumeration",
         });
+        reportProgress(
+          "Workspace scan superseded by newer lint results.",
+          100
+        );
+        scanCompleted = true;
         return; // lost the race
       }
       verboseEvent({
@@ -2338,8 +2384,31 @@ export function activate(context: vscode.ExtensionContext) {
           : undefined,
       });
 
+      const groupCount = groupLintEntries(files).length;
+      const fileLabel = files.length === 1 ? "file" : "files";
+      const groupLabel = groupCount === 1
+        ? "workspace folder"
+        : "workspace folders";
+      reportProgress(
+        files.length === 0
+          ? "No supported files found; preparing diagnostic cleanup..."
+          : `Preparing to analyze ${files.length} ${fileLabel} across ${groupCount} ${groupLabel}...`,
+        15
+      );
+
       const t0 = Date.now();
-      const map = await lintProjectGroups(files);
+      const map = await lintProjectGroups(files, (groupProgress) => {
+        const completed = groupProgress.completedGroups;
+        const total = Math.max(1, groupProgress.totalGroups);
+        const completion = 15 + Math.round((completed / total) * 70);
+        const currentFileLabel = groupProgress.currentGroupFiles === 1
+          ? "file"
+          : "files";
+        const message = completed < groupProgress.currentGroup
+          ? `Analyzing workspace folder ${groupProgress.currentGroup} of ${groupProgress.totalGroups} (${groupProgress.currentGroupFiles} ${currentFileLabel})...`
+          : `Analyzed workspace folder ${groupProgress.currentGroup} of ${groupProgress.totalGroups}.`;
+        reportProgress(message, completion);
+      });
       if (runId !== globalRunId) {
         verboseEvent({
           event: "lintRunDiscarded",
@@ -2347,10 +2416,20 @@ export function activate(context: vscode.ExtensionContext) {
           runId,
           stage: "postCompute",
         });
+        reportProgress(
+          "Workspace scan superseded by newer lint results.",
+          100
+        );
+        scanCompleted = true;
         return; // lost after compute
       }
 
       const remapped = map;
+
+      reportProgress(
+        `Publishing diagnostics for ${remapped.size} analyzed ${remapped.size === 1 ? "file" : "files"}...`,
+        90
+      );
 
       // Apply atomically: delete stale, then set new
       const updatedFiles = new Set(remapped.keys());
@@ -2403,6 +2482,13 @@ export function activate(context: vscode.ExtensionContext) {
         ruleCounts: verboseLogging ? ruleCounts : undefined,
       });
 
+      const totalDuration = Date.now() - startedAt;
+      reportProgress(
+        `Complete: scanned ${files.length} ${fileLabel} and found ${runDiagnostics} ${runDiagnostics === 1 ? "issue" : "issues"} in ${totalDuration}ms.`,
+        100
+      );
+      scanCompleted = true;
+
       if (cfg().get("devMode", false) as boolean) {
         const metrics = PerformanceDiagnostics.getLatestMetrics();
         let slowFile = "";
@@ -2439,7 +2525,13 @@ export function activate(context: vscode.ExtensionContext) {
       });
       throw error;
     } finally {
-      issueTracker.finishScan();
+      if (scanCompleted) {
+        issueTracker.finishScan();
+      } else {
+        issueTracker.failScan(
+          "The scan did not complete. Last-known diagnostics were preserved; see the ZemDomu output channel for details."
+        );
+      }
     }
   }
 
@@ -2497,10 +2589,29 @@ export function activate(context: vscode.ExtensionContext) {
       return vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: "ZemDomu: Scanning...",
+          title: "ZemDomu: Scan workspace",
           cancellable: false,
         },
         async (progress) => {
+          let reportedCompletion = 0;
+          const progressListener = (update: WorkspaceScanProgress) => {
+            const nextCompletion = Math.max(
+              reportedCompletion,
+              update.completion
+            );
+            progress.report({
+              message: update.message,
+              increment: nextCompletion - reportedCompletion,
+            });
+            reportedCompletion = nextCompletion;
+          };
+          workspaceProgressListeners.add(progressListener);
+          progressListener({
+            message: runningWorkspace
+              ? "Waiting for the active workspace scan to finish..."
+              : "Starting workspace scan...",
+            completion: 0,
+          });
           const slow = setTimeout(
             () =>
               vscode.window.showInformationMessage(
@@ -2509,7 +2620,6 @@ export function activate(context: vscode.ExtensionContext) {
             5000
           );
           try {
-            progress.report({ increment: 0 });
             scheduleWorkspaceLint();
             // Wait for the currently running/queued scan to finish if any.
             // Retain the first error so a queued retry cannot mask failure.
@@ -2522,7 +2632,6 @@ export function activate(context: vscode.ExtensionContext) {
               }
             }
             if (scanError) throw scanError;
-            progress.report({ increment: 100 });
             return "Scan complete";
           } catch (error) {
             const message =
@@ -2533,6 +2642,7 @@ export function activate(context: vscode.ExtensionContext) {
             throw error;
           } finally {
             clearTimeout(slow);
+            workspaceProgressListeners.delete(progressListener);
           }
         }
       );

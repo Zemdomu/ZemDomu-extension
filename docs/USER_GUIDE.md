@@ -36,6 +36,13 @@ Changing settings rebuilds the linter and listener configuration without
 starting an implicit workspace scan. In `disabled` mode, ZemDomu preserves
 existing diagnostics until a later successful manual scan refreshes them.
 
+Manual workspace scans report file discovery, workspace-folder analysis,
+diagnostic publication, and completion in a VS Code progress notification.
+The ZemDomu status bar item exposes the same state with an explicit accessible
+label; focus the VS Code status bar with the keyboard to review or activate it.
+Scans are non-cancellable in 1.0 because the measured 1,000-file p95 is about
+2.37 seconds and partial cancellation cannot yet preserve atomic results.
+
 Rules and per-rule severity:
 
 ```json

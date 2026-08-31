@@ -248,6 +248,16 @@ async function testWorkspaceFailureReporting() {
       previousDiagnostics,
       'a failed scan must preserve the last-known diagnostics'
     );
+    const statusBar = vscode.window.__getStatusBarItems()[0];
+    assert.strictEqual(
+      statusBar.text,
+      'ZemDomu: scan failed',
+      'a failed scan must not report all clear in the status bar'
+    );
+    assert.ok(
+      statusBar.accessibilityInformation.label.includes('scan failed'),
+      'a failed scan must expose an explicit screen-reader label'
+    );
     assert.ok(
       vscode.window
         .__getErrorMessages()
@@ -269,10 +279,51 @@ async function testWorkspaceFailureReporting() {
   }
 }
 
+async function testWorkspaceProgressContract() {
+  const harness = await createHarness('manual');
+  try {
+    await vscode.commands.__execute('zemdomu.lintWorkspace');
+    const sessions = vscode.window.__getProgressSessions();
+    const session = sessions[sessions.length - 1];
+    assert.ok(session, 'workspace scans must use VS Code progress UI');
+    assert.strictEqual(session.options.location, vscode.ProgressLocation.Notification);
+    assert.strictEqual(session.options.cancellable, false);
+
+    const messages = session.reports.map(report => report.message ?? '');
+    for (const phase of [
+      'Discovering supported workspace files',
+      'Preparing to analyze 1 file across 1 workspace folder',
+      'Analyzing workspace folder 1 of 1',
+      'Publishing diagnostics for 1 analyzed file',
+      'Complete: scanned 1 file and found 1 issue',
+    ]) {
+      assert.ok(
+        messages.some(message => message.includes(phase)),
+        `progress must communicate the ${phase} phase`
+      );
+    }
+    const totalIncrement = session.reports.reduce(
+      (total, report) => total + (report.increment ?? 0),
+      0
+    );
+    assert.strictEqual(totalIncrement, 100, 'workspace progress must complete at 100%');
+
+    const statusBar = vscode.window.__getStatusBarItems()[0];
+    assert.strictEqual(statusBar.text, 'ZemDomu: 1 issue');
+    assert.ok(
+      statusBar.accessibilityInformation.label.includes('scan complete'),
+      'completed scan state must be available to screen readers'
+    );
+  } finally {
+    await destroyHarness(harness);
+  }
+}
+
 (async () => {
   try {
     await testActivationAndTriggers();
     await testSettingsChanges();
+    await testWorkspaceProgressContract();
     await testWorkspaceFailureReporting();
     console.log('Run mode contract tests passed');
   } catch (error) {

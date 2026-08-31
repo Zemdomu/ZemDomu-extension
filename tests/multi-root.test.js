@@ -54,6 +54,21 @@ function codeOf(diag) {
     assert.ok(log.lines.some(line => line.includes(`rootDir=${rootA}`)), 'Expected Root A analysis root');
     assert.ok(log.lines.some(line => line.includes(`rootDir=${rootB}`)), 'Expected Root B analysis root');
 
+    const progressSessions = vscode.window.__getProgressSessions();
+    const progressMessages = progressSessions[0].reports.map(report => report.message ?? '');
+    assert.ok(
+      progressMessages.some(message => message.includes('4 files across 2 workspace folders')),
+      'Multi-root progress must communicate the total file and workspace-folder counts'
+    );
+    assert.ok(
+      progressMessages.some(message => message.includes('workspace folder 1 of 2')),
+      'Multi-root progress must communicate the first workspace-folder phase'
+    );
+    assert.ok(
+      progressMessages.some(message => message.includes('workspace folder 2 of 2')),
+      'Multi-root progress must communicate the second workspace-folder phase'
+    );
+
     const outsideDir = path.join(tmpDir, 'outside');
     fs.mkdirSync(outsideDir);
     const outsidePath = path.join(outsideDir, 'Outside.jsx');

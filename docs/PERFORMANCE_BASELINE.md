@@ -29,3 +29,16 @@ resident memory, enforces the launch thresholds, and removes the fixture.
 The workspace timing gate is satisfied on this reference machine. The memory
 gate remains a version 1 blocker; this result does not measure or satisfy the
 separate requirement for less than 20% growth after 100 repeated scans.
+
+## Cancellation decision for 1.0
+
+Workspace scans remain non-cancellable for 1.0. The 1,000-file reference p95
+is 2.37 seconds, below the 10-second launch gate, while cancelling the current
+Core operation cannot stop computation safely and could encourage partial or
+stale diagnostic state. The Extension instead reports discovery, per-workspace
+analysis, publication, file counts, and completion through the VS Code progress
+notification and its keyboard-focusable status bar item.
+
+Revisit cancellation if representative workspace p95 exceeds five seconds,
+repeated user reports show that scans obstruct editing, or Core gains a
+cooperative cancellation contract that preserves atomic diagnostic updates.
