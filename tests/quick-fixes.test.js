@@ -56,15 +56,18 @@ function getProvider() {
 }
 
 function getAction(provider, doc, diag, title) {
-  const actions =
-    provider.provideCodeActions(
-      doc,
-      diag.range,
-      { diagnostics: [diag] }
-    ) || [];
+  const actions = getActions(provider, doc, diag);
   const action = actions.find(a => a.title === title);
   assert.ok(action, `Expected quick fix "${title}" to be available`);
   return action;
+}
+
+function getActions(provider, doc, diag) {
+  return provider.provideCodeActions(
+    doc,
+    diag.range,
+    { diagnostics: [diag] }
+  ) || [];
 }
 
 function makeDiagnostic(doc, message, needle) {
@@ -91,7 +94,7 @@ function makeDiagnostic(doc, message, needle) {
 
     const provider = getProvider();
 
-    // ZMD001 - requireSectionHeading (aria-labelledby when child exists)
+    // ZMD001 - requireSectionHeading (non-heading child needs an explicit review marker)
     {
       const content = '<section>\n  <p>Hi</p>\n</section>';
       const { doc } = await openDoc(tmpDir, 'section', '.html', content);
@@ -100,10 +103,9 @@ function makeDiagnostic(doc, message, needle) {
         '<section> missing heading (<h1>-<h6>) or accessible label (aria-label / aria-labelledby)',
         '<section>'
       );
-      const action = getAction(provider, doc, diag, 'Add aria-labelledby="TODO-ZMD"');
-      const inserts = action.edit.operations.filter(op => op.type === 'insert');
-      assert.ok(inserts.some(op => op.value.includes('aria-labelledby="TODO-ZMD"')));
-      assert.ok(inserts.some(op => op.value.includes('id="TODO-ZMD"')));
+      const action = getAction(provider, doc, diag, 'Add aria-label="TODO-ZMD"');
+      const insert = action.edit.operations.find(op => op.type === 'insert');
+      assert.ok(insert.value.includes('aria-label="TODO-ZMD"'));
     }
 
     // ZMD001 - requireSectionHeading (aria-label when empty)
@@ -129,10 +131,11 @@ function makeDiagnostic(doc, message, needle) {
         'Heading level skipped: <h4> after <h2>',
         '<h4>'
       );
-      const action = getAction(provider, doc, diag, 'Change to <h3>');
-      const replaces = action.edit.operations.filter(op => op.type === 'replace');
-      assert.ok(replaces.length >= 2, 'Expected opening and closing tag replacement');
-      replaces.forEach(op => assert.strictEqual(op.value, 'h3'));
+      assert.strictEqual(
+        getActions(provider, doc, diag).length,
+        0,
+        'Heading levels require author intent and must not be guessed'
+      );
     }
 
     // ZMD003 - singleH1
@@ -144,10 +147,11 @@ function makeDiagnostic(doc, message, needle) {
         'Only one <h1> allowed per document',
         '<h1>Second'
       );
-      const action = getAction(provider, doc, diag, 'Change to <h2>');
-      const replaces = action.edit.operations.filter(op => op.type === 'replace');
-      assert.ok(replaces.length >= 2, 'Expected opening and closing tag replacement');
-      replaces.forEach(op => assert.strictEqual(op.value, 'h2'));
+      assert.strictEqual(
+        getActions(provider, doc, diag).length,
+        0,
+        'Choosing which h1 to demote requires author intent'
+      );
     }
 
     // ZMD004 - requireAltText
@@ -177,10 +181,7 @@ function makeDiagnostic(doc, message, needle) {
       const ariaInsert = ariaAction.edit.operations.find(op => op.type === 'insert');
       assert.ok(ariaInsert.value.includes('aria-label="TODO-ZMD"'));
 
-      const labelAction = getAction(provider, doc, diag, 'Add <label> and id');
-      const labelInserts = labelAction.edit.operations.filter(op => op.type === 'insert');
-      assert.ok(labelInserts.some(op => op.value.includes('<label') && op.value.includes('for="TODO-ZMD"')));
-      assert.ok(labelInserts.some(op => op.value.includes('id="TODO-ZMD"')));
+      assert.strictEqual(getActions(provider, doc, diag).length, 1);
     }
 
     // ZMD005 - requireLabelForFormControls (existing id, missing label)
@@ -192,10 +193,9 @@ function makeDiagnostic(doc, message, needle) {
         'Form control with id="email" missing <label for="email">',
         '<input'
       );
-      const action = getAction(provider, doc, diag, 'Insert <label> before control');
+      const action = getAction(provider, doc, diag, 'Add aria-label="TODO-ZMD"');
       const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('<label'));
-      assert.ok(insert.value.includes('for="email"'));
+      assert.ok(insert.value.includes('aria-label="TODO-ZMD"'));
     }
 
     // ZMD005 - requireLabelForFormControls (label missing for)
@@ -207,9 +207,9 @@ function makeDiagnostic(doc, message, needle) {
         'Form control with id="email" missing <label for="email">',
         '<input'
       );
-      const action = getAction(provider, doc, diag, 'Add for to <label>');
+      const action = getAction(provider, doc, diag, 'Add aria-label="TODO-ZMD"');
       const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('for="email"'));
+      assert.ok(insert.value.includes('aria-label="TODO-ZMD"'));
     }
 
     // ZMD005 - requireLabelForFormControls (JSX uses htmlFor)
@@ -221,9 +221,9 @@ function makeDiagnostic(doc, message, needle) {
         'Form control with id="email" missing <label for="email">',
         '<input'
       );
-      const action = getAction(provider, doc, diag, 'Add htmlFor to <label>');
+      const action = getAction(provider, doc, diag, 'Add aria-label="TODO-ZMD"');
       const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('htmlFor="email"'));
+      assert.ok(insert.value.includes('aria-label="TODO-ZMD"'));
     }
 
     // ZMD005 - requireLabelForFormControls (JSX arrow attributes)
@@ -235,18 +235,18 @@ function makeDiagnostic(doc, message, needle) {
         'Form control missing id or aria-label',
         '<input'
       );
-      const action = getAction(provider, doc, diag, 'Add <label> and id');
-      const idInsert = action.edit.operations.find(
-        op => op.type === 'insert' && op.value.includes('id="TODO-ZMD"')
+      const action = getAction(provider, doc, diag, 'Add aria-label="TODO-ZMD"');
+      const ariaInsert = action.edit.operations.find(
+        op => op.type === 'insert' && op.value.includes('aria-label="TODO-ZMD"')
       );
-      assert.ok(idInsert, 'Expected id insert for JSX arrow case');
-      const insertOffset = offsetAt(content, idInsert.position);
+      assert.ok(ariaInsert, 'Expected aria-label insert for JSX arrow case');
+      const insertOffset = offsetAt(content, ariaInsert.position);
       const exprEnd = content.lastIndexOf(')}');
       assert.ok(exprEnd !== -1, 'Expected to find end of onChange expression');
       const exprClose = exprEnd + 1;
       assert.ok(
         insertOffset > exprClose,
-        'Expected id insert after JSX expression end'
+        'Expected aria-label insert after JSX expression end'
       );
     }
 
@@ -259,9 +259,9 @@ function makeDiagnostic(doc, message, needle) {
         '<li> must be inside a <ul> or <ol>',
         '<li>First'
       );
-      const action = getAction(provider, doc, diag, 'Wrap with <ul>');
+      const action = getAction(provider, doc, diag, 'Wrap with <ul> and TODO-ZMD review marker');
       const inserts = action.edit.operations.filter(op => op.type === 'insert');
-      assert.ok(inserts.some(op => op.value.includes('<ul>')));
+      assert.ok(inserts.some(op => op.value.includes('<ul data-zemdomu-todo="TODO-ZMD">')));
       assert.ok(inserts.some(op => op.value.includes('</ul>')));
     }
 
@@ -274,10 +274,11 @@ function makeDiagnostic(doc, message, needle) {
         '<li> must be inside a <ul> or <ol>',
         '<li>'
       );
-      const action = getAction(provider, doc, diag, 'Wrap with <ul>');
-      const inserts = action.edit.operations.filter(op => op.type === 'insert');
-      assert.ok(inserts.some(op => op.position.line === 0 && op.value.includes('<ul>')));
-      assert.ok(inserts.some(op => op.value.includes('</ul>')));
+      assert.strictEqual(
+        getActions(provider, doc, diag).length,
+        0,
+        'Dynamic list expressions require AST-aware placement and must not be guessed'
+      );
     }
 
     // ZMD006 - enforceListNesting (multiline li)
@@ -289,10 +290,10 @@ function makeDiagnostic(doc, message, needle) {
         '<li> must be inside a <ul> or <ol>',
         '<li>'
       );
-      const action = getAction(provider, doc, diag, 'Wrap with <ul>');
+      const action = getAction(provider, doc, diag, 'Wrap with <ul> and TODO-ZMD review marker');
       const inserts = action.edit.operations.filter(op => op.type === 'insert');
       const closeInsert = inserts.find(op => op.value.includes('</ul>'));
-      assert.ok(inserts.some(op => op.position.line === 0 && op.value.includes('<ul>')));
+      assert.ok(inserts.some(op => op.position.line === 0 && op.value.includes('<ul data-zemdomu-todo="TODO-ZMD">')));
       assert.ok(closeInsert, 'Expected closing </ul> insert');
       assert.strictEqual(closeInsert.position.line, 2);
     }
@@ -348,9 +349,11 @@ function makeDiagnostic(doc, message, needle) {
         '<a> tag missing non-empty href attribute',
         '<Link>'
       );
-      const action = getAction(provider, doc, diag, 'Add to="TODO-ZMD"');
-      const insert = action.edit.operations.find(op => op.type === 'insert');
-      assert.ok(insert.value.includes('to="TODO-ZMD"'));
+      assert.strictEqual(
+        getActions(provider, doc, diag).length,
+        0,
+        'Unknown component props must not be invented'
+      );
     }
 
     // ZMD011 - requireButtonText
@@ -432,13 +435,11 @@ function makeDiagnostic(doc, message, needle) {
         'Tabindex greater than 0 should be avoided',
         '<div'
       );
-      const actionZero = getAction(provider, doc, diag, 'Set tabindex to "0"');
-      const replaceZero = actionZero.edit.operations.find(op => op.type === 'replace');
-      assert.strictEqual(replaceZero.value, '0');
-
-      const actionMinus = getAction(provider, doc, diag, 'Set tabindex to "-1"');
-      const replaceMinus = actionMinus.edit.operations.find(op => op.type === 'replace');
-      assert.strictEqual(replaceMinus.value, '-1');
+      assert.strictEqual(
+        getActions(provider, doc, diag).length,
+        0,
+        'Focus-order intent must not be guessed'
+      );
     }
 
     // ZMD019 - requireDocumentTitle (missing title)
@@ -492,10 +493,11 @@ function makeDiagnostic(doc, message, needle) {
         'Only one <main> landmark allowed per document',
         '<main>Two'
       );
-      const action = getAction(provider, doc, diag, 'Change duplicate <main> to <section>');
-      const replaces = action.edit.operations.filter(op => op.type === 'replace');
-      assert.ok(replaces.length >= 2, 'Expected opening and closing tag replacements');
-      replaces.forEach(op => assert.strictEqual(op.value, 'section'));
+      assert.strictEqual(
+        getActions(provider, doc, diag).length,
+        0,
+        'Landmark conversion requires author intent'
+      );
     }
 
     // ZMD021 - ariaValidAttrValue
@@ -507,9 +509,9 @@ function makeDiagnostic(doc, message, needle) {
         'ARIA attribute "aria-hidden" has invalid value "maybe"',
         'aria-hidden='
       );
-      const action = getAction(provider, doc, diag, 'Set aria-hidden="false"');
+      const action = getAction(provider, doc, diag, 'Replace aria-hidden with "TODO-ZMD" for review');
       const replace = action.edit.operations.find(op => op.type === 'replace');
-      assert.strictEqual(replace.value, 'false');
+      assert.strictEqual(replace.value, 'TODO-ZMD');
     }
 
     console.log('Quick fix tests passed');

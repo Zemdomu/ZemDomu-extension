@@ -1,16 +1,16 @@
 {
   "cases": [
     {
-      "name": "section heading quick fix reuses child id",
+      "name": "section heading quick fix marks missing author label",
       "fileName": "section-heading.html",
       "source": "<section>\n  <p id=\"overview\">Overview</p>\n</section>",
       "expectRules": ["requireSectionHeading"],
       "quickFixes": [
         {
           "rule": "requireSectionHeading",
-          "title": "Add aria-labelledby=\"overview\"",
+          "title": "Add aria-label=\"TODO-ZMD\"",
           "anchor": "<section>",
-          "expected": "<section aria-labelledby=\"overview\">\n  <p id=\"overview\">Overview</p>\n</section>"
+          "expected": "<section aria-label=\"TODO-ZMD\">\n  <p id=\"overview\">Overview</p>\n</section>"
         }
       ]
     },
@@ -29,18 +29,10 @@
       ]
     },
     {
-      "name": "tabindex quick fix rewrites value",
+      "name": "tabindex diagnostic remains available for manual remediation",
       "fileName": "tabindex.html",
       "source": "<div tabindex=\"2\"></div>",
-      "expectRules": ["noTabindexGreaterThanZero"],
-      "quickFixes": [
-        {
-          "rule": "noTabindexGreaterThanZero",
-          "title": "Set tabindex to \"-1\"",
-          "anchor": "<div",
-          "expected": "<div tabindex=\"-1\"></div>"
-        }
-      ]
+      "expectRules": ["noTabindexGreaterThanZero"]
     },
     {
       "name": "TODO placeholder rule is reported",

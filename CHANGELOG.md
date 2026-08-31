@@ -2,6 +2,8 @@
 
 ### Bugfix
 
+- Bugfix: enforce the quick-fix safety contract across HTML, JSX/TSX, and Vue by requiring exact or unique diagnostic targets and a visible `TODO-ZMD` marker whenever author input is still needed.
+- Bugfix: withdraw unsafe quick fixes that guessed heading levels, landmark roles, focus order, label associations, ARIA state values, or unknown component routing props.
 - Bugfix: block Marketplace publication until real Extension Host checks pass on Windows and Linux against the oldest supported and current stable VS Code releases.
 - Bugfix: coalesce repeated workspace-scan commands so determinate progress tracks one scan, and distinguish scans superseded by newer lint results from successful completion.
 - Bugfix: publish the same inspected VSIX that passes the deterministic release checks, with clean-profile installation and real Extension Host smoke coverage before Marketplace publication.
@@ -21,6 +23,7 @@
 
 ### Docs
 
+- Docs: explain when `TODO-ZMD` requires author review and when ZemDomu intentionally withholds a semantic quick fix.
 - Docs: identify `singleH1` and `requireNavLinks` as house style, and table-caption and section-heading guidance as advisory unless a specific conformance requirement applies.
 - Docs: add guided GitHub report forms for extension bugs, false positives, false negatives, and performance regressions.
 - Docs: list all 21 supported rules consistently in the README and Marketplace user guide, including `noTabindexGreaterThanZero`.

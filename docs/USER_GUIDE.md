@@ -173,8 +173,14 @@ Marketplace listing.
 ### A quick fix leaves `TODO-ZMD`
 
 The marker means the extension could target the correct node but could not
-safely invent the needed human-readable label or content. Replace the marker,
-save the file, and scan again.
+safely invent the needed human-readable label, content, ARIA state, or list
+ordering. Replace the marker, save the file, and scan again.
+
+ZemDomu withholds a quick fix when the correct change depends on author intent,
+including heading hierarchy, duplicate landmark roles, keyboard focus order,
+label associations, and props on custom framework components. Make those
+changes manually so the extension does not encode a plausible but incorrect
+semantic choice.
 
 ## Development
 
