@@ -136,6 +136,7 @@ class StatusBarItem {
     this.tooltip = '';
     this.command = undefined;
     this.name = 'ZemDomu';
+    this.accessibilityInformation = undefined;
     this.alignment = StatusBarAlignment.Left;
     this._visible = false;
   }
@@ -218,6 +219,7 @@ let findFilesError = null;
 const outputChannels = new Map();
 const errorMessages = [];
 const statusBarItems = [];
+const progressSessions = [];
 
 const StatusBarAlignment = Object.freeze({
   Left: 1,
@@ -446,14 +448,16 @@ const window = {
     return item;
   },
 
-  withProgress(_options, task) {
+  withProgress(options, task) {
+    const reports = [];
     const progress = {
-      report: () => {},
+      report: value => reports.push({ ...value }),
     };
     const token = {
       isCancellationRequested: false,
       onCancellationRequested: () => new Disposable(),
     };
+    progressSessions.push({ options: { ...options }, reports, token });
     try {
       return Promise.resolve(task(progress, token));
     } catch (error) {
@@ -486,6 +490,10 @@ const window = {
 
   __getStatusBarItems() {
     return statusBarItems.slice();
+  },
+
+  __getProgressSessions() {
+    return progressSessions.slice();
   },
 };
 
@@ -575,5 +583,6 @@ module.exports = {
     outputChannels.clear();
     errorMessages.splice(0, errorMessages.length);
     statusBarItems.splice(0, statusBarItems.length);
+    progressSessions.splice(0, progressSessions.length);
   },
 };
