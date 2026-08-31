@@ -35,6 +35,25 @@ export class IssueTracker implements vscode.Disposable {
     this.refresh(true);
   }
 
+  supersedeScan(): void {
+    this.scanning = false;
+    this.scanPhase = undefined;
+    const total = this.getTotalCount();
+    this.statusBar.text = total > 0
+      ? `ZemDomu: ${total} ${total === 1 ? 'issue' : 'issues'}`
+      : 'ZemDomu: all clear';
+    this.statusBar.tooltip = [
+      'The workspace scan was superseded by newer lint results.',
+      this.buildTooltip(total),
+    ].join('\n');
+    this.setAccessibility(
+      total > 0
+        ? `ZemDomu workspace scan superseded by newer lint results. ${total} ${total === 1 ? 'issue' : 'issues'} currently reported. Activate to scan the workspace.`
+        : 'ZemDomu workspace scan superseded by newer lint results. No issues currently reported. Activate to scan the workspace.'
+    );
+    this.statusBar.show();
+  }
+
   failScan(message: string): void {
     this.scanning = false;
     this.scanPhase = undefined;

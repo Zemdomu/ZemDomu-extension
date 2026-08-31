@@ -33,6 +33,8 @@ type WorkspaceScanProgress = {
   completion: number;
 };
 
+type WorkspaceScanOutcome = "completed" | "superseded";
+
 type ProjectGroupProgress = {
   completedGroups: number;
   totalGroups: number;
@@ -75,17 +77,17 @@ const diagCache = new Map<string, FileCacheEntry>();
 let globalRunId = 0;
 
 // Simple serialization for workspace-wide runs
-let runningWorkspace: Promise<void> | null = null;
+let runningWorkspace: Promise<WorkspaceScanOutcome> | null = null;
 let workspaceQueued = false;
 
-function queueWorkspace(run: () => Promise<void>) {
+function queueWorkspace(run: () => Promise<WorkspaceScanOutcome>) {
   if (runningWorkspace) {
     workspaceQueued = true;
-    return;
+    return runningWorkspace;
   }
   runningWorkspace = (async () => {
     try {
-      await run();
+      return await run();
     } finally {
       runningWorkspace = null;
       if (workspaceQueued) {
@@ -94,6 +96,7 @@ function queueWorkspace(run: () => Promise<void>) {
       }
     }
   })();
+  return runningWorkspace;
 }
 
 // Create a stable signature for a LintResult
@@ -1834,6 +1837,7 @@ export function activate(context: vscode.ExtensionContext) {
   const workspaceProgressListeners = new Set<
     (update: WorkspaceScanProgress) => void
   >();
+  let activeWorkspaceCommand: Promise<string> | null = null;
   const cfg = (resource?: vscode.Uri) =>
     vscode.workspace.getConfiguration("zemdomu", resource);
 
@@ -2331,8 +2335,8 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  async function lintWorkspaceAtomic() {
-    let scanCompleted = false;
+  async function lintWorkspaceAtomic(): Promise<WorkspaceScanOutcome> {
+    let scanOutcome: WorkspaceScanOutcome | undefined;
     const reportProgress = (message: string, completion: number) => {
       const update = {
         message,
@@ -2371,8 +2375,8 @@ export function activate(context: vscode.ExtensionContext) {
           "Workspace scan superseded by newer lint results.",
           100
         );
-        scanCompleted = true;
-        return; // lost the race
+        scanOutcome = "superseded";
+        return scanOutcome; // lost the race
       }
       verboseEvent({
         event: "lintRunEnumerated",
@@ -2420,8 +2424,8 @@ export function activate(context: vscode.ExtensionContext) {
           "Workspace scan superseded by newer lint results.",
           100
         );
-        scanCompleted = true;
-        return; // lost after compute
+        scanOutcome = "superseded";
+        return scanOutcome; // lost after compute
       }
 
       const remapped = map;
@@ -2487,7 +2491,7 @@ export function activate(context: vscode.ExtensionContext) {
         `Complete: scanned ${files.length} ${fileLabel} and found ${runDiagnostics} ${runDiagnostics === 1 ? "issue" : "issues"} in ${totalDuration}ms.`,
         100
       );
-      scanCompleted = true;
+      scanOutcome = "completed";
 
       if (cfg().get("devMode", false) as boolean) {
         const metrics = PerformanceDiagnostics.getLatestMetrics();
@@ -2514,6 +2518,7 @@ export function activate(context: vscode.ExtensionContext) {
           `Slowest phase: ${slowPhase} ${slowPhaseTime.toFixed(2)}ms`
         );
       }
+      return scanOutcome;
     } catch (error) {
       const details =
         error instanceof Error ? error.stack ?? error.message : String(error);
@@ -2525,8 +2530,10 @@ export function activate(context: vscode.ExtensionContext) {
       });
       throw error;
     } finally {
-      if (scanCompleted) {
+      if (scanOutcome === "completed") {
         issueTracker.finishScan();
+      } else if (scanOutcome === "superseded") {
+        issueTracker.supersedeScan();
       } else {
         issueTracker.failScan(
           "The scan did not complete. Last-known diagnostics were preserved; see the ZemDomu output channel for details."
@@ -2549,7 +2556,7 @@ export function activate(context: vscode.ExtensionContext) {
   let typeTimer: NodeJS.Timeout | undefined;
 
   function scheduleWorkspaceLint() {
-    queueWorkspace(lintWorkspaceAtomic);
+    return queueWorkspace(lintWorkspaceAtomic);
   }
 
   function updateListeners() {
@@ -2586,7 +2593,9 @@ export function activate(context: vscode.ExtensionContext) {
   const lintCommand = vscode.commands.registerCommand(
     "zemdomu.lintWorkspace",
     () => {
-      return vscode.window.withProgress(
+      if (activeWorkspaceCommand) return activeWorkspaceCommand;
+
+      const command = vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
           title: "ZemDomu: Scan workspace",
@@ -2620,19 +2629,22 @@ export function activate(context: vscode.ExtensionContext) {
             5000
           );
           try {
+            let scanOutcome: WorkspaceScanOutcome = "completed";
             scheduleWorkspaceLint();
             // Wait for the currently running/queued scan to finish if any.
             // Retain the first error so a queued retry cannot mask failure.
             let scanError: unknown;
             while (runningWorkspace) {
               try {
-                await runningWorkspace;
+                scanOutcome = await runningWorkspace;
               } catch (error) {
                 scanError ??= error;
               }
             }
             if (scanError) throw scanError;
-            return "Scan complete";
+            return scanOutcome === "superseded"
+              ? "Scan superseded"
+              : "Scan complete";
           } catch (error) {
             const message =
               error instanceof Error ? error.message : String(error);
@@ -2646,6 +2658,13 @@ export function activate(context: vscode.ExtensionContext) {
           }
         }
       );
+      const trackedCommand = command.finally(() => {
+        if (activeWorkspaceCommand === trackedCommand) {
+          activeWorkspaceCommand = null;
+        }
+      });
+      activeWorkspaceCommand = trackedCommand;
+      return trackedCommand;
     }
   );
 

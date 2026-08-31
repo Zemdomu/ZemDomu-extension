@@ -319,11 +319,101 @@ async function testWorkspaceProgressContract() {
   }
 }
 
+async function testConcurrentWorkspaceCommandsCoalesce() {
+  const harness = await createHarness('manual');
+  try {
+    const progressSessionCount = vscode.window.__getProgressSessions().length;
+    const firstScan = vscode.commands.__execute('zemdomu.lintWorkspace');
+    const secondScan = vscode.commands.__execute('zemdomu.lintWorkspace');
+
+    assert.strictEqual(
+      secondScan,
+      firstScan,
+      'concurrent manual invocations must join the active command promise'
+    );
+    const outcomes = await Promise.all([firstScan, secondScan]);
+    assert.deepStrictEqual(outcomes, ['Scan complete', 'Scan complete']);
+    assert.strictEqual(
+      vscode.workspace.__getFindFilesCallCount(),
+      1,
+      'concurrent manual invocations must run one workspace scan'
+    );
+
+    const sessions = vscode.window.__getProgressSessions().slice(progressSessionCount);
+    assert.strictEqual(
+      sessions.length,
+      1,
+      'concurrent manual invocations must share one determinate progress notification'
+    );
+    const totalIncrement = sessions[0].reports.reduce(
+      (total, report) => total + (report.increment ?? 0),
+      0
+    );
+    assert.strictEqual(
+      totalIncrement,
+      100,
+      'coalesced workspace progress must complete exactly once at 100%'
+    );
+  } finally {
+    await destroyHarness(harness);
+  }
+}
+
+async function testSupersededWorkspaceState() {
+  const harness = await createHarness('onSave');
+  const originalFindFiles = vscode.workspace.findFiles;
+  try {
+    let releaseFindFiles;
+    vscode.workspace.findFiles = () => new Promise(resolve => {
+      releaseFindFiles = () => resolve([harness.doc.uri]);
+    });
+
+    const workspaceScan = vscode.commands.__execute('zemdomu.lintWorkspace');
+    assert.ok(releaseFindFiles, 'the workspace scan must begin file discovery');
+
+    harness.doc.__setText(GOOD_SOURCE);
+    fs.writeFileSync(harness.filePath, GOOD_SOURCE, 'utf8');
+    await vscode.workspace.__fireDidSaveTextDocument(harness.doc);
+    releaseFindFiles();
+
+    assert.strictEqual(
+      await workspaceScan,
+      'Scan superseded',
+      'a workspace scan displaced by newer lint results must not report success'
+    );
+    assert.strictEqual(
+      hasRule(harness.collection, harness.doc, 'requireAltText', 'ZMD004'),
+      false,
+      'a superseded workspace scan must preserve the newer atomic diagnostics'
+    );
+
+    const statusBar = vscode.window.__getStatusBarItems()[0];
+    assert.strictEqual(
+      statusBar.text,
+      'ZemDomu: all clear',
+      'the superseded state must retain the authoritative diagnostic summary'
+    );
+    assert.ok(
+      statusBar.tooltip.includes('scan was superseded'),
+      'a superseded scan must expose a distinct user-visible terminal state'
+    );
+    assert.ok(
+      statusBar.accessibilityInformation.label.includes('scan superseded'),
+      'a superseded scan must expose a distinct screen-reader terminal state'
+    );
+  } finally {
+    vscode.workspace.findFiles = originalFindFiles;
+    await destroyHarness(harness);
+  }
+}
+
 (async () => {
   try {
     await testActivationAndTriggers();
     await testSettingsChanges();
     await testWorkspaceProgressContract();
+    await testConcurrentWorkspaceCommandsCoalesce();
+    await testSupersededWorkspaceState();
     await testWorkspaceFailureReporting();
     console.log('Run mode contract tests passed');
   } catch (error) {

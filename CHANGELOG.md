@@ -2,6 +2,7 @@
 
 ### Bugfix
 
+- Bugfix: coalesce repeated workspace-scan commands so determinate progress tracks one scan, and distinguish scans superseded by newer lint results from successful completion.
 - Bugfix: publish the same inspected VSIX that passes the deterministic release checks, with clean-profile installation and real Extension Host smoke coverage before Marketplace publication.
 - Bugfix: verify rule enablement, severity changes, and status-bar issue counts as part of the launch test suite.
 - Bugfix: make on-save, on-type, manual, and disabled run modes honor their documented triggers, including linting unsaved editor buffers in on-type mode and avoiding implicit workspace scans during activation or settings changes.
