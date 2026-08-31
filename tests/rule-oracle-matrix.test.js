@@ -59,7 +59,12 @@ const REPEATED_CASES = [
   ['singleH1', '<h1>One</h1><h1>Two</h1><h1>Three</h1>'],
   ['requireAltText', '<img src="one.png" /><img src="two.png" />'],
   ['requireLabelForFormControls', '<input type="text" /><textarea></textarea>'],
-  ['enforceListNesting', '<li>One</li><li>Two</li>'],
+  ['enforceListNesting', {
+    html: '<li>One</li><li>Two</li>',
+    jsx: '<div><li>One</li><li>Two</li></div>',
+    tsx: '<div><li>One</li><li>Two</li></div>',
+    vue: '<li>One</li><li>Two</li>',
+  }],
   ['requireLinkText', '<a href="/one"></a><a href="/two"></a>'],
   ['requireTableCaption', '<table></table><table></table>'],
   ['preventEmptyInlineTags', '<strong></strong><em></em>'],
@@ -189,11 +194,12 @@ function verifyMatrixShape() {
   );
 
   const observedCategories = new Set();
+  const coverageCells = [];
   for (const [ruleName, definition] of Object.entries(matrix)) {
-    assert.ok(definition.syntaxes.length > 0, `${ruleName}: expected at least one syntax`);
-    assert.ok(
-      definition.syntaxes.every((syntax) => ALL_SYNTAXES.includes(syntax)),
-      `${ruleName}: contains an unsupported syntax`
+    assert.deepStrictEqual(
+      definition.syntaxes,
+      ALL_SYNTAXES,
+      `${ruleName}: must explicitly classify every supported syntax instead of omitting a cell`
     );
 
     for (const syntax of definition.syntaxes) {
@@ -212,6 +218,12 @@ function verifyMatrixShape() {
         goodOrAmbiguous.length >= 10,
         `${ruleName}/${syntax}: requires at least 10 semantically distinct known-good or ambiguous fixtures`
       );
+      coverageCells.push({
+        ruleName,
+        syntax,
+        knownBad: knownBad.length,
+        goodOrAmbiguous: goodOrAmbiguous.length,
+      });
     }
 
     for (const testCase of definition.cases) {
@@ -222,12 +234,31 @@ function verifyMatrixShape() {
   for (const category of REQUIRED_EDGE_CATEGORIES) {
     assert.ok(observedCategories.has(category), `Missing required edge-case category: ${category}`);
   }
+
+  const expectedCellCount = EXPECTED_RULES.length * ALL_SYNTAXES.length;
+  assert.strictEqual(
+    coverageCells.length,
+    expectedCellCount,
+    'Rule-oracle topology must report every rule/syntax cell'
+  );
+
+  return {
+    cellCount: coverageCells.length,
+    expectedCellCount,
+    minimumKnownBad: Math.min(...coverageCells.map((cell) => cell.knownBad)),
+    minimumGoodOrAmbiguous: Math.min(
+      ...coverageCells.map((cell) => cell.goodOrAmbiguous)
+    ),
+  };
 }
 
 async function verifyRepeatedFindings(core, tempDir, failures) {
-  for (const [ruleName, markup] of REPEATED_CASES) {
+  for (const [ruleName, fixture] of REPEATED_CASES) {
     for (const syntax of matrix[ruleName].syntaxes) {
-      const source = renderSource({ name: 'repeated violations', markup }, syntax);
+      const repeatedCase = typeof fixture === 'string'
+        ? { name: 'repeated violations', markup: fixture }
+        : { name: 'repeated violations', markupBySyntax: fixture };
+      const source = renderSource(repeatedCase, syntax);
       const filePath = path.join(tempDir, `repeated-${ruleName}.${syntax}`);
       fs.writeFileSync(filePath, source, 'utf8');
       const resultMap = await core.lintFile(filePath, source);
@@ -257,7 +288,7 @@ async function verifyRepeatedFindings(core, tempDir, failures) {
 }
 
 (async () => {
-  verifyMatrixShape();
+  const topology = verifyMatrixShape();
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zemdomu-rule-oracle-'));
   const core = new ProjectLinter({ crossComponentAnalysis: false });
@@ -312,7 +343,11 @@ async function verifyRepeatedFindings(core, tempDir, failures) {
       `Representative failures:\n- ${samples.join('\n- ')}`
   );
 
-  console.log('Rule oracle matrix tests passed');
+  console.log(
+    `Rule oracle matrix tests passed: ${topology.cellCount}/${topology.expectedCellCount} ` +
+      `rule/syntax cells; minimum density ${topology.minimumKnownBad} known-bad and ` +
+      `${topology.minimumGoodOrAmbiguous} known-good/ambiguous fixtures per cell`
+  );
 })().catch((error) => {
   console.error('Rule oracle matrix tests failed');
   console.error(error);

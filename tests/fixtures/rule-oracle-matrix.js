@@ -9,6 +9,14 @@ const bad = (name, markup, target, categories = []) => ({
   outcome: 'finding',
 });
 
+const badBySyntax = (name, markupBySyntax, target, categories = []) => ({
+  name,
+  markupBySyntax,
+  target,
+  categories,
+  outcome: 'finding',
+});
+
 const good = (name, markup, categories = []) => ({
   name,
   markup,
@@ -155,10 +163,26 @@ const matrix = {
   ]),
 
   enforceListNesting: rule([
-    bad('standalone li', '<li>One</li>', '<li'),
+    badBySyntax('standalone li in document or template', {
+      html: '<li>One</li>',
+      vue: '<li>One</li>',
+    }, '<li'),
+    ambiguous('component-root li may be composed under a list', {
+      jsx: '<li>One</li>',
+      tsx: '<li>One</li>',
+    }),
     bad('li under div', '<div><li>One</li></div>', '<li'),
     bad('li under nav', '<nav><li>One</li></nav>', '<li'),
-    bad('li under fragment', '<><li>One</li><li>Two</li></>', ['<li>One', '<li>Two'], ['fragments']),
+    bad('li under section', '<section><li>One</li></section>', '<li'),
+    bad('li under article', '<article><li>One</li></article>', '<li'),
+    badBySyntax('li under document or template fragment', {
+      html: '<><li>One</li><li>Two</li></>',
+      vue: '<><li>One</li><li>Two</li></>',
+    }, ['<li>One', '<li>Two'], ['fragments']),
+    ambiguous('component-root fragment of list items may be composed under a list', {
+      jsx: '<><li>One</li><li>Two</li></>',
+      tsx: '<><li>One</li><li>Two</li></>',
+    }, ['fragments']),
     bad('li under menu wrapper', '<menu><div><li>One</li></div></menu>', '<li'),
     good('li in ul', '<ul><li>One</li></ul>'),
     good('li in ol', '<ol><li>One</li></ol>'),
