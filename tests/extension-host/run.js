@@ -3,6 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { runTests } = require('@vscode/test-electron');
+const { exitAfterOutput } = require('./exit-after-output');
 
 const FILE_COUNT = 100;
 const HOST_WARMUP_RUNS = 5;
@@ -131,8 +132,16 @@ async function main() {
   }
 }
 
-main().catch(error => {
-  console.error('VS Code Extension Host tests failed');
-  console.error(error);
-  process.exitCode = 1;
-});
+main().then(
+  () => {
+    // VS Code's downloader/extractor can retain a child handle after every
+    // awaited host run has completed. Flush the report, then terminate the
+    // harness so a successful CI job cannot idle until its timeout.
+    exitAfterOutput(0);
+  },
+  error => {
+    console.error('VS Code Extension Host tests failed');
+    console.error(error);
+    exitAfterOutput(1);
+  }
+);
