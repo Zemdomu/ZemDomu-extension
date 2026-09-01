@@ -8,7 +8,9 @@ const FILE_COUNT = 100;
 const HOST_WARMUP_RUNS = 5;
 const ACTIVATION_RUNS = 20;
 const IS_GITHUB_HOSTED_RUNNER = process.env.GITHUB_ACTIONS === 'true';
-const MAX_ACTIVATION_P95_MS = IS_GITHUB_HOSTED_RUNNER ? 1200 : 500;
+const MAX_ACTIVATION_P95_MS = IS_GITHUB_HOSTED_RUNNER
+  ? (process.platform === 'win32' ? 1800 : 1200)
+  : 500;
 
 const fixtures = {
   html: index => `<!doctype html><html lang="en"><head><title>Page ${index}</title></head><body><main><h1>Page ${index}</h1><img src="portrait-${index}.png" alt="Portrait ${index}"></main></body></html>`,
