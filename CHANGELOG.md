@@ -31,6 +31,7 @@
 
 ### Performance
 
+- Performance: enforce real Extension Host release budgets for cold activation, debounced typing, saves in a 100-file mixed-framework workspace, peak memory, and memory growth across 100 repeated scans.
 - Performance: enforce a 5 MiB bundle ceiling and a 2 MiB packaged VSIX ceiling; the verified release candidate is 1.27 MiB and excludes source, tests, compiled `out/`, dependencies, and stale VSIX files.
 - Performance: add a reproducible 1,000-file mixed-framework workspace benchmark with enforced scan-time and peak-memory launch thresholds.
 

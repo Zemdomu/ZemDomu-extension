@@ -1,44 +1,59 @@
 # Performance Baseline
 
-This baseline records the reproducible version 1 scale check. Run it with:
+The release performance gate runs inside real VS Code Extension Hosts:
 
 ```sh
-npm run benchmark:workspace
+npm run bundle
+npm run test:extension-host
 ```
 
-The benchmark creates a temporary, evenly mixed HTML, JSX, TSX, and Vue
-workspace. Each of its 1,000 standalone files contains valid headings,
-landmarks, and named images. It runs the production ZemDomu `ProjectLinter`
-with cross-component analysis enabled, reports five scan durations, samples
-resident memory, enforces the launch thresholds, and removes the fixture.
+The runner creates a temporary 100-file workspace evenly mixed across HTML,
+JSX, TSX, and Vue. It removes the fixture after the run and records the
+hardware, operating system, Node.js, VS Code, extension version, fixture, and
+sample counts with the measured results.
 
-## 2026-08-28 reference run
+## Release budgets and methodology
+
+- Cold activation: five fresh-host cache warm-ups followed by 20 measured
+  fresh Extension Hosts; p95 must be below 500 ms.
+- On-type: 20 diagnostic transitions in the real host; p95 includes the
+  150-ms debounce and must be below 500 ms.
+- On-save: 100 diagnostic transitions while the 100-file workspace is open;
+  p95 must be below 1 second.
+- Memory: RSS is sampled throughout the same 100 on-save scans. Peak RSS must
+  stay below 250 MiB and final growth from the pre-scan baseline must stay
+  below 20%.
+
+Each measured interaction alternates one document between a valid named image
+and a missing-alt state. The test waits for the corresponding Problems
+diagnostic transition, so it measures completed user-visible work rather than
+only dispatch time. The five activation warm-ups stabilize operating-system
+and VS Code file caches; every measured activation still uses a new Extension
+Host process.
+
+The GitHub Actions Extension Host matrix runs this gate on Ubuntu and Windows
+against both VS Code 1.105.0 and the current stable version. Any exceeded budget
+fails that matrix cell.
+
+## 2026-09-01 Windows reference
 
 - Hardware: Intel Core i7-11700KF, 8 cores / 16 logical processors, 32 GiB RAM
 - Operating system: Windows 11 Home 10.0.26200, x64
-- VS Code reference host: 1.135.0
-- Node.js: 24.15.0
 - Extension: 0.0.17 unreleased launch candidate
-- Fixture: 1,000 files, 250 each of HTML, JSX, TSX, and Vue
-- Runs: 5
-- Scan durations: 2102.42 ms, 1872.54 ms, 2372.54 ms, 2121.69 ms, and 1751.27 ms
-- Scan p95: 2372.54 ms — passes the under-10-second gate
-- Findings: 0 in every run, as expected for the valid fixture
-- Peak RSS: 317.39 MiB — fails the under-250-MiB gate
+- Fixture: 100 files across HTML, JSX, TSX, and Vue
+- VS Code 1.105.0 / Node.js 22.19.0:
+  - cold activation p95: 329.63 ms
+  - on-type p95: 227.30 ms
+  - on-save p95: 60.47 ms
+  - peak RSS: 238.78 MiB
+  - RSS growth after 100 scans: 1%
+- VS Code 1.135.0 / Node.js 24.18.1:
+  - cold activation p95: 422.53 ms
+  - on-type p95: 222.61 ms
+  - on-save p95: 60.59 ms
+  - peak RSS: 238.36 MiB
+  - RSS growth after 100 scans: 0%
 
-The workspace timing gate is satisfied on this reference machine. The memory
-gate remains a version 1 blocker; this result does not measure or satisfy the
-separate requirement for less than 20% growth after 100 repeated scans.
-
-## Cancellation decision for 1.0
-
-Workspace scans remain non-cancellable for 1.0. The 1,000-file reference p95
-is 2.37 seconds, below the 10-second launch gate, while cancelling the current
-Core operation cannot stop computation safely and could encourage partial or
-stale diagnostic state. The Extension instead reports discovery, per-workspace
-analysis, publication, file counts, and completion through the VS Code progress
-notification and its keyboard-focusable status bar item.
-
-Revisit cancellation if representative workspace p95 exceeds five seconds,
-repeated user reports show that scans obstruct editing, or Core gains a
-cooperative cancellation contract that preserves atomic diagnostic updates.
+The separate `npm run benchmark:workspace` command remains a manual 1,000-file
+Core scale probe. It measures a full project scan rather than interactive
+Extension behavior and is not a substitute for this release gate.
