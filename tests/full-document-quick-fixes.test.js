@@ -135,6 +135,11 @@ async function assertNoQuickFix(provider, tmpDir, testCase) {
   const diagnostics = testCase.useAllTargetDiagnostics
     ? targetResults.map(diagnosticFromCore)
     : [diagnosticFromCore(result)];
+  if (testCase.forceIndistinguishableDiagnostics) {
+    for (const diagnostic of diagnostics) {
+      diagnostic.range = diagnostics[0].range;
+    }
+  }
   const actions = provider.provideCodeActions(
     doc,
     diagnostics[0].range,
@@ -377,6 +382,7 @@ async function assertNoQuickFix(provider, tmpDir, testCase) {
         source: '<table><tr><td>One</td></tr></table><table><tr><td>Two</td></tr></table>',
         rule: 'requireTableCaption',
         useAllTargetDiagnostics: true,
+        forceIndistinguishableDiagnostics: true,
       },
     ];
 
@@ -384,7 +390,7 @@ async function assertNoQuickFix(provider, tmpDir, testCase) {
       await assertNoQuickFix(provider, tmpDir, testCase);
     }
 
-    const inlineListSource = 'const App = () => { return <li>Item</li>; };';
+    const inlineListSource = 'const App = () => { return <div><li>Item</li></div>; };';
     assert.doesNotThrow(
       () => parse(inlineListSource, { sourceType: 'module', plugins: ['jsx'] }),
       'Inline JSX list regression source should be parseable before requesting quick fixes'

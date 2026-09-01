@@ -13,7 +13,6 @@ import {
   isCanonicalLintResult,
   lintProjectForPresentation,
 } from "./diagnostic-adapter";
-import type { PageAwareProjectLinter } from "./diagnostic-adapter";
 
 /**
  * Race-safe, queued, and atomic application of diagnostics.
@@ -1525,7 +1524,7 @@ export function activate(context: vscode.ExtensionContext) {
       );
       const entryPaths = group.entries.map((entry) => entry.fsPath);
       const groupMap = await lintProjectForPresentation(
-        groupCore as unknown as PageAwareProjectLinter,
+        groupCore,
         entryPaths
       );
       const remapped = buildRemappedResults(await applyInlineControls(groupMap));

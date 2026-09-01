@@ -1,60 +1,24 @@
 import * as vscode from "vscode";
-import type { LintResult } from "zemdomu";
-
-export type CanonicalDiagnosticSeverity = "error" | "warning" | "info";
-
-export interface CanonicalSourceLocation {
-  file: string;
-  line: number;
-  column: number;
-  offset?: number;
-}
-
-export interface CanonicalZemDomuDiagnostic {
-  schemaVersion: "1.0";
-  rule: string;
-  code: string;
-  severity: CanonicalDiagnosticSeverity;
-  message: string;
-  source: CanonicalSourceLocation;
-  page?: string;
-  componentPath?: string[];
-  relatedLocations?: Array<{
-    source: CanonicalSourceLocation;
-    message?: string;
-  }>;
-  preferredEditLocation?: CanonicalSourceLocation;
-  suggestion?: {
-    message: string;
-    replacement?: string;
-  };
-  provenance?: {
-    kind: "source" | "cross-component" | "inference";
-    analyzer?: string;
-    description?: string;
-  };
-  confidence?: "certain" | "inferred" | "unknown";
-}
+import type {
+  LintResult,
+  ProjectLinter,
+  ZemDomuDiagnostic,
+  ZemDomuDiagnosticSeverity,
+  ZemDomuSourceLocation,
+} from "zemdomu";
 
 export type CanonicalLintResult = LintResult & {
-  canonicalDiagnostic: CanonicalZemDomuDiagnostic;
+  canonicalDiagnostic: ZemDomuDiagnostic;
 };
 
-export interface PageAwareProjectLinter {
-  lintFiles(filePaths: string[]): Promise<Map<string, LintResult[]>>;
-  lintPageDiagnostics?: (
-    filePaths: string[]
-  ) => Promise<CanonicalZemDomuDiagnostic[]>;
-}
-
-function safePosition(location: CanonicalSourceLocation): vscode.Position {
+function safePosition(location: ZemDomuSourceLocation): vscode.Position {
   return new vscode.Position(
     Number.isFinite(location.line) ? Math.max(0, location.line) : 0,
     Number.isFinite(location.column) ? Math.max(0, location.column) : 0
   );
 }
 
-function locationRange(location: CanonicalSourceLocation): vscode.Range {
+function locationRange(location: ZemDomuSourceLocation): vscode.Range {
   const start = safePosition(location);
   return new vscode.Range(
     start,
@@ -63,14 +27,14 @@ function locationRange(location: CanonicalSourceLocation): vscode.Range {
 }
 
 function diagnosticSeverity(
-  severity: CanonicalDiagnosticSeverity
+  severity: ZemDomuDiagnosticSeverity
 ): vscode.DiagnosticSeverity {
   if (severity === "error") return vscode.DiagnosticSeverity.Error;
   if (severity === "info") return vscode.DiagnosticSeverity.Information;
   return vscode.DiagnosticSeverity.Warning;
 }
 
-function diagnosticMessage(diagnostic: CanonicalZemDomuDiagnostic): string {
+function diagnosticMessage(diagnostic: ZemDomuDiagnostic): string {
   const lines = [diagnostic.message];
   if (diagnostic.page) lines.push(`Page: ${diagnostic.page}`);
   if (diagnostic.componentPath?.length) {
@@ -83,7 +47,7 @@ function diagnosticMessage(diagnostic: CanonicalZemDomuDiagnostic): string {
 }
 
 export function canonicalDiagnosticToLintResult(
-  diagnostic: CanonicalZemDomuDiagnostic
+  diagnostic: ZemDomuDiagnostic
 ): CanonicalLintResult {
   return {
     line: diagnostic.source.line,
@@ -113,13 +77,9 @@ export function isCanonicalLintResult(
 }
 
 export async function lintProjectForPresentation(
-  linter: PageAwareProjectLinter,
+  linter: Pick<ProjectLinter, "lintPageDiagnostics">,
   filePaths: string[]
 ): Promise<Map<string, LintResult[]>> {
-  if (typeof linter.lintPageDiagnostics !== "function") {
-    return linter.lintFiles(filePaths);
-  }
-
   const diagnostics = await linter.lintPageDiagnostics(filePaths);
   const grouped = new Map<string, LintResult[]>(
     filePaths.map((filePath) => [filePath, []])
@@ -133,7 +93,7 @@ export async function lintProjectForPresentation(
 }
 
 export function canonicalDiagnosticToVscode(
-  diagnostic: CanonicalZemDomuDiagnostic,
+  diagnostic: ZemDomuDiagnostic,
   docsUri?: vscode.Uri | null
 ): vscode.Diagnostic {
   const mapped = new vscode.Diagnostic(

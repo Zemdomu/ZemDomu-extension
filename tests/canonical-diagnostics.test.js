@@ -75,13 +75,8 @@ assert.strictEqual(informational.code, 'ZMD022');
 
 (async () => {
   let canonicalCalls = 0;
-  let legacyCalls = 0;
   const canonicalMap = await lintProjectForPresentation(
     {
-      async lintFiles() {
-        legacyCalls += 1;
-        return new Map();
-      },
       async lintPageDiagnostics(filePaths) {
         canonicalCalls += 1;
         assert.deepStrictEqual(filePaths, [primaryFile]);
@@ -91,26 +86,7 @@ assert.strictEqual(informational.code, 'ZMD022');
     [primaryFile]
   );
   assert.strictEqual(canonicalCalls, 1);
-  assert.strictEqual(legacyCalls, 0);
   assert.ok(isCanonicalLintResult(canonicalMap.get(primaryFile)[0]));
-
-  const legacyResult = {
-    line: 0,
-    column: 0,
-    rule: 'requireAltText',
-    message: 'Missing alt text.',
-  };
-  const legacyMap = await lintProjectForPresentation(
-    {
-      async lintFiles(filePaths) {
-        legacyCalls += 1;
-        return new Map([[filePaths[0], [legacyResult]]]);
-      },
-    },
-    [primaryFile]
-  );
-  assert.strictEqual(legacyCalls, 1);
-  assert.strictEqual(legacyMap.get(primaryFile)[0], legacyResult);
 
   console.log('Canonical diagnostic adapter tests passed');
 })().catch((error) => {
