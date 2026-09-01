@@ -34,11 +34,11 @@ Host process.
 The GitHub Actions Extension Host matrix runs this gate on Ubuntu and Windows
 against both VS Code 1.105.0 and the current stable version. Shared hosted
 runners use activation regression ceilings of 1.2 seconds on Linux and 1.8
-seconds on Windows, plus a 275-MiB RSS ceiling, because their CPU performance
-and base Extension Host memory differ from the reference machine. The on-type,
-on-save, and growth budgets are unchanged. Any exceeded ceiling fails that
-matrix cell; the stricter 500-ms and 250-MiB release budgets remain enforced
-everywhere else.
+seconds on Windows, a 750-ms on-type ceiling on Windows, and a 275-MiB RSS
+ceiling because their CPU performance and base Extension Host memory differ
+from the reference machine. Linux on-type plus all on-save and growth budgets
+are unchanged. Any exceeded ceiling fails that matrix cell; the stricter
+500-ms and 250-MiB release budgets remain enforced everywhere else.
 
 ## 2026-09-01 Windows reference
 

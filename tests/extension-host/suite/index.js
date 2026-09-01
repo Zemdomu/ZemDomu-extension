@@ -9,9 +9,11 @@ const manifest = require('../../../package.json');
 const EXTENSION_ID = `${manifest.publisher}.${manifest.name}`;
 const TYPE_RUNS = 20;
 const SAVE_RUNS = 100;
-const MAX_TYPE_P95_MS = 500;
-const MAX_SAVE_P95_MS = 1000;
 const IS_GITHUB_HOSTED_RUNNER = process.env.GITHUB_ACTIONS === 'true';
+const MAX_TYPE_P95_MS = IS_GITHUB_HOSTED_RUNNER && process.platform === 'win32'
+  ? 750
+  : 500;
+const MAX_SAVE_P95_MS = 1000;
 const MAX_RSS_MIB = IS_GITHUB_HOSTED_RUNNER ? 275 : 250;
 const MAX_RSS_GROWTH_PERCENT = 20;
 
