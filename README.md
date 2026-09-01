@@ -1,13 +1,14 @@
 # ZemDomu VS Code Extension
 
-> Semantic feedback while you code.
+> Catch supported semantic accessibility defects while you code.
 
-The ZemDomu VS Code Extension brings ZemDomu's semantic checks directly into the
-editor. It highlights structure, accessibility, and search-related markup
-issues while you work, so you can fix them before they become CI failures or
-late-stage audit findings.
+The ZemDomu VS Code Extension brings semantic accessibility static analysis
+into the editor. It reports supported HTML, JSX, TSX, and Vue source defects
+inline and in the Problems panel, including named structural issues across
+statically resolvable React and Vue imports during workspace analysis.
 
-Most linters check syntax. ZemDomu checks meaning.
+Get a diagnostic at the source before the defect becomes a late browser or
+audit finding.
 
 ## Scope and Limitations
 
@@ -23,26 +24,27 @@ choose to follow them.
 
 ## What It Is
 
-ZemDomu is a VS Code extension for HTML, JSX, TSX, and Vue templates. It
+The ZemDomu VS Code Extension analyzes HTML, JSX, TSX, and Vue templates. It
 integrates with inline diagnostics, the Problems panel, workspace scans, and
 quick fixes so semantic feedback becomes part of normal development rather than
 an extra review step.
 
 ## Why ZemDomu
 
-Compared with generic editor linting and post-deploy scanners, ZemDomu is built
-to give faster and more actionable semantic feedback while you code.
+ZemDomu complements file-oriented source linting and rendered-DOM testing with
+project-aware semantic structure analysis while you code.
 
 - Focused semantic diagnostics for document structure, accessible names, and landmarks.
 - Consistent rule behavior with ZemDomu Core and the ZemDomu GitHub Action.
-- Cross-component analysis to surface issues hidden behind imports.
+- Supported cross-component analysis across statically resolvable React and
+  Vue imports.
 - Built-in quick fixes for common remediation paths.
 
 ## Features
 
 - Lints HTML, JSX, TSX, and Vue templates with semantic rules.
 - Runs on save, on type, or manually.
-- Workspace scan command and status bar issue count.
+- Workspace scan command and status bar finding count.
 - Cross-component JSX and Vue analysis.
 - Quick fixes for common missing attributes and semantic issues.
 - Optional verbose logging and performance diagnostics.
@@ -51,7 +53,7 @@ to give faster and more actionable semantic feedback while you code.
 
 1. Install from the VS Code Marketplace or search for `ZemDomu` in Extensions.
 2. Open an `.html`, `.jsx`, `.tsx`, or `.vue` file.
-3. Save the file or run `ZemDomu: Scan Workspace for Semantic Issues`
+3. Save the file or run `ZemDomu: Scan Workspace for Semantic Accessibility Issues`
    (`Ctrl+Alt+Z` / `Cmd+Alt+Z`).
 4. Review findings in the Problems panel and editor.
 
@@ -125,6 +127,15 @@ Override severity per rule:
 - `requireDocumentTitle`
 - `requireSingleMain`
 - `ariaValidAttrValue`
+
+### Heading Rules
+
+`enforceHeadingOrder` warns when a later heading skips upward levels, such as
+`<h3>` after `<h1>`. The first heading observed does not warn.
+
+`singleH1` is a house-style rule that warns about additional `<h1>` elements;
+it does not require a page to contain an `<h1>`. The current VS Code Extension
+therefore does not report a missing first or page-level `<h1>`.
 
 ## Inline Disabling
 

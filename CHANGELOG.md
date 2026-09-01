@@ -23,6 +23,9 @@
 
 ### Docs
 
+- Docs: align Marketplace copy, commands, settings, and status-bar wording with
+  the approved semantic accessibility positioning, and clarify that the shipped
+  heading rules do not require a first or page-level H1.
 - Docs: explain when `TODO-ZMD` requires author review and when ZemDomu intentionally withholds a semantic quick fix.
 - Docs: identify `singleH1` and `requireNavLinks` as house style, and table-caption and section-heading guidance as advisory unless a specific conformance requirement applies.
 - Docs: add guided GitHub report forms for extension bugs, false positives, false negatives, and performance regressions.

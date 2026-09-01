@@ -1930,7 +1930,7 @@ export function activate(context: vscode.ExtensionContext) {
       const command = vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: "ZemDomu: Scan workspace",
+          title: "ZemDomu: Scan Workspace for Semantic Accessibility Issues",
           cancellable: false,
         },
         async (progress) => {

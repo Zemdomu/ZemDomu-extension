@@ -309,7 +309,7 @@ async function testWorkspaceProgressContract() {
     assert.strictEqual(totalIncrement, 100, 'workspace progress must complete at 100%');
 
     const statusBar = vscode.window.__getStatusBarItems()[0];
-    assert.strictEqual(statusBar.text, 'ZemDomu: 1 issue');
+    assert.strictEqual(statusBar.text, 'ZemDomu: 1 finding');
     assert.ok(
       statusBar.accessibilityInformation.label.includes('scan complete'),
       'completed scan state must be available to screen readers'

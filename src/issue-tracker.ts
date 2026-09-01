@@ -7,12 +7,12 @@ export class IssueTracker implements vscode.Disposable {
   private scanPhase: string | undefined;
 
   constructor(private readonly statusBar: vscode.StatusBarItem) {
-    this.statusBar.name = 'ZemDomu Issues';
+    this.statusBar.name = 'ZemDomu Findings';
     this.statusBar.command = 'zemdomu.lintWorkspace';
     this.statusBar.text = 'ZemDomu: ready';
-    this.statusBar.tooltip = 'ZemDomu semantic linter is standing by.';
+    this.statusBar.tooltip = 'ZemDomu semantic accessibility analysis is ready.';
     this.setAccessibility(
-      'ZemDomu semantic linter ready. Activate to scan the workspace.'
+      'ZemDomu semantic accessibility analysis ready. Activate to scan the workspace.'
     );
     this.statusBar.show();
   }
@@ -40,7 +40,7 @@ export class IssueTracker implements vscode.Disposable {
     this.scanPhase = undefined;
     const total = this.getTotalCount();
     this.statusBar.text = total > 0
-      ? `ZemDomu: ${total} ${total === 1 ? 'issue' : 'issues'}`
+      ? `ZemDomu: ${total} ${total === 1 ? 'finding' : 'findings'}`
       : 'ZemDomu: all clear';
     this.statusBar.tooltip = [
       'The workspace scan was superseded by newer lint results.',
@@ -48,8 +48,8 @@ export class IssueTracker implements vscode.Disposable {
     ].join('\n');
     this.setAccessibility(
       total > 0
-        ? `ZemDomu workspace scan superseded by newer lint results. ${total} ${total === 1 ? 'issue' : 'issues'} currently reported. Activate to scan the workspace.`
-        : 'ZemDomu workspace scan superseded by newer lint results. No issues currently reported. Activate to scan the workspace.'
+        ? `ZemDomu workspace scan superseded by newer lint results. ${total} ${total === 1 ? 'finding' : 'findings'} currently reported. Activate to scan the workspace.`
+        : 'ZemDomu workspace scan superseded by newer lint results. No findings currently reported. Activate to scan the workspace.'
     );
     this.statusBar.show();
   }
@@ -111,13 +111,13 @@ export class IssueTracker implements vscode.Disposable {
   private renderScanning(): void {
     const total = this.getTotalCount();
     const suffix = total > 0 ? ` (${total})` : '';
-    const phase = this.scanPhase ?? 'Scanning workspace for ZemDomu issues.';
+    const phase = this.scanPhase ?? 'Scanning workspace for ZemDomu findings.';
     this.statusBar.text = `ZemDomu: scanning...${suffix}`;
     this.statusBar.tooltip = total > 0
       ? `${phase}\n${this.buildTooltip(total)}`
       : phase;
     const findingStatus = total > 0
-      ? ` ${total} ${total === 1 ? 'issue is' : 'issues are'} currently detected.`
+      ? ` ${total} ${total === 1 ? 'finding is' : 'findings are'} currently detected.`
       : '';
     this.setAccessibility(`ZemDomu scan in progress. ${phase}${findingStatus}`);
     this.statusBar.show();
@@ -126,7 +126,7 @@ export class IssueTracker implements vscode.Disposable {
   private refresh(workspaceScanCompleted = false): void {
     const total = this.getTotalCount();
     if (total > 0) {
-      const label = total === 1 ? 'issue' : 'issues';
+      const label = total === 1 ? 'finding' : 'findings';
       this.statusBar.text = `ZemDomu: ${total} ${label}`;
     } else {
       this.statusBar.text = 'ZemDomu: all clear';
@@ -136,8 +136,8 @@ export class IssueTracker implements vscode.Disposable {
       ? 'ZemDomu workspace scan complete.'
       : 'ZemDomu diagnostics updated.';
     this.setAccessibility(total > 0
-      ? `${prefix} ${total} ${total === 1 ? 'issue' : 'issues'} found. Activate to scan the workspace.`
-      : `${prefix} No issues currently reported. Activate to scan the workspace.`
+      ? `${prefix} ${total} ${total === 1 ? 'finding' : 'findings'} found. Activate to scan the workspace.`
+      : `${prefix} No findings currently reported. Activate to scan the workspace.`
     );
     this.statusBar.show();
   }
@@ -148,13 +148,13 @@ export class IssueTracker implements vscode.Disposable {
 
   private buildTooltip(total: number): string {
     if (total === 0) {
-      return 'No ZemDomu issues in this workspace.';
+      return 'No ZemDomu findings in this workspace.';
     }
     const details = [...this.issueCounts.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(([file, count]) => `${path.basename(file)}: ${count}`);
-    const header = `ZemDomu found ${total} ${total === 1 ? 'issue' : 'issues'} in this workspace.`;
+    const header = `ZemDomu reported ${total} ${total === 1 ? 'finding' : 'findings'} in this workspace.`;
     if (details.length === 0) {
       return header;
     }

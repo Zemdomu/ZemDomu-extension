@@ -44,7 +44,7 @@ function diagnostic(message) {
     const first = vscode.Uri.file(path.join('workspace', 'index.html'));
     const second = vscode.Uri.file(path.join('workspace', 'App.jsx'));
 
-    assert.strictEqual(statusBar.name, 'ZemDomu Issues');
+    assert.strictEqual(statusBar.name, 'ZemDomu Findings');
     assert.strictEqual(statusBar.command, 'zemdomu.lintWorkspace');
     assert.strictEqual(statusBar.text, 'ZemDomu: ready');
     assert.ok(statusBar.accessibilityInformation.label.includes('ready'));
@@ -62,20 +62,20 @@ function diagnostic(message) {
     tracker.updateFile(first, [diagnostic('Missing alt')]);
     tracker.updateFile(second, [diagnostic('Missing title'), diagnostic('Missing main')]);
     assert.strictEqual(statusBar.text, 'ZemDomu: scanning... (3)');
-    assert.ok(statusBar.tooltip.includes('3 issues'));
+    assert.ok(statusBar.tooltip.includes('3 findings'));
     assert.ok(statusBar.tooltip.includes('App.jsx: 2'));
     assert.ok(statusBar.tooltip.includes('index.html: 1'));
 
     tracker.finishScan();
-    assert.strictEqual(statusBar.text, 'ZemDomu: 3 issues');
-    assert.ok(statusBar.accessibilityInformation.label.includes('3 issues found'));
+    assert.strictEqual(statusBar.text, 'ZemDomu: 3 findings');
+    assert.ok(statusBar.accessibilityInformation.label.includes('3 findings found'));
 
     tracker.removeFile(second);
-    assert.strictEqual(statusBar.text, 'ZemDomu: 1 issue');
+    assert.strictEqual(statusBar.text, 'ZemDomu: 1 finding');
 
     tracker.updateFile(first, []);
     assert.strictEqual(statusBar.text, 'ZemDomu: all clear');
-    assert.strictEqual(statusBar.tooltip, 'No ZemDomu issues in this workspace.');
+    assert.strictEqual(statusBar.tooltip, 'No ZemDomu findings in this workspace.');
 
     tracker.beginScan();
     tracker.clear();

@@ -1,8 +1,8 @@
 {
   "name": "zemdomu",
-  "displayName": "ZemDomu",
+  "displayName": "ZemDomu VS Code Extension",
   "publisher": "ZachariasErydBerlin",
-  "description": "A semantic linter for HTML, JSX/TSX, and Vue templates with cross-component analysis",
+  "description": "Semantic accessibility static analysis for HTML, JSX, TSX, and Vue with supported cross-component context",
   "repository": {
     "type": "git",
     "url": "https://github.com/Zemdomu/ZemDomu-extension.git"
@@ -29,7 +29,7 @@
     "commands": [
       {
         "command": "zemdomu.lintWorkspace",
-        "title": "ZemDomu: Scan Workspace for Semantic Issues"
+        "title": "ZemDomu: Scan Workspace for Semantic Accessibility Issues"
       }
     ],
     "keybindings": [
@@ -41,7 +41,7 @@
       }
     ],
     "configuration": {
-      "title": "ZemDomu Settings",
+      "title": "ZemDomu VS Code Extension Settings",
       "properties": {
         "zemdomu.run": {
           "type": "string",
@@ -52,13 +52,13 @@
             "disabled"
           ],
           "default": "onSave",
-          "description": "When to run semantic linting:\n- onSave: after each file save\n- onType: as you type\n- manual: only via the Scan Workspace command\n- disabled: never run automatically"
+          "description": "When to run semantic accessibility analysis:\n- onSave: after each file save\n- onType: as you type\n- manual: only via the Scan Workspace command\n- disabled: never run automatically"
         },
         "zemdomu.crossComponentAnalysis": {
           "type": "boolean",
           "default": true,
           "scope": "resource",
-          "description": "Analyze and detect semantic issues across component boundaries"
+          "description": "Analyze supported structural issues across statically resolvable React and Vue component boundaries."
         },
         "zemdomu.crossComponentDepth": {
           "type": "integer",
@@ -85,12 +85,12 @@
         "zemdomu.rules.enforceHeadingOrder": {
           "type": "boolean",
           "default": true,
-          "description": "Warn if heading levels skip (e.g. <h3> after <h1> without <h2>)."
+          "description": "Warn when a later heading skips upward levels (for example, <h3> after <h1> without <h2>). The first observed heading does not warn."
         },
         "zemdomu.rules.singleH1": {
           "type": "boolean",
           "default": true,
-          "description": "House style: warn if more than one <h1> is used in a document. This is not a general WCAG conformance requirement."
+          "description": "House style: warn if more than one <h1> is used in a document. This rule does not require an <h1> and is not a general WCAG conformance requirement."
         },
         "zemdomu.rules.requireAltText": {
           "type": "boolean",

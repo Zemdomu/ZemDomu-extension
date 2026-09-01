@@ -1,13 +1,14 @@
 # ZemDomu VS Code Extension
 
-ZemDomu lints HTML, JSX, TSX, and Vue templates for semantic and accessibility issues. It
-surfaces diagnostics in the Problems panel and inline editor warnings.
+The ZemDomu VS Code Extension provides semantic accessibility static analysis
+for supported HTML, JSX, TSX, and Vue source. It surfaces diagnostics in the
+Problems panel and inline editor warnings.
 
 ## Usage
 
 1. Install the extension.
 2. Open an `.html`, `.jsx`, `.tsx`, or `.vue` file.
-3. Save the file, type, or run `ZemDomu: Scan Workspace for Semantic Issues`
+3. Save the file, type, or run `ZemDomu: Scan Workspace for Semantic Accessibility Issues`
    (`Ctrl+Alt+Z` / `Cmd+Alt+Z`).
 4. Review results in the Problems panel and editor.
 
@@ -29,7 +30,7 @@ Settings are under the `zemdomu` namespace.
 | --- | --- |
 | `onSave` | Lints the saved file after each save. This is the default. |
 | `onType` | Lints the current unsaved editor buffer after a short debounce. |
-| `manual` | Runs only when you use `ZemDomu: Scan Workspace for Semantic Issues`. |
+| `manual` | Runs only when you use `ZemDomu: Scan Workspace for Semantic Accessibility Issues`. |
 | `disabled` | Never starts an automatic scan. The manual workspace command remains available. |
 
 Changing settings rebuilds the linter and listener configuration without
@@ -103,6 +104,12 @@ ZemDomu treats `singleH1` and `requireNavLinks` as house-style rules.
 `requireTableCaption` and `requireSectionHeading` are advisory by default;
 whether their guidance is required depends on the document and the conformance
 criteria that apply. Their default severity remains `warning`.
+
+`enforceHeadingOrder` compares each heading with the previous heading it can
+observe and warns only when a later heading skips upward levels. The first
+observed heading does not warn. `singleH1` reports additional `<h1>` elements
+but does not require one, so the current VS Code Extension does not report a
+missing first or page-level `<h1>`.
 
 ## What Static Analysis Cannot Prove
 
