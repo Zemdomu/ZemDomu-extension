@@ -32,8 +32,12 @@ and VS Code file caches; every measured activation still uses a new Extension
 Host process.
 
 The GitHub Actions Extension Host matrix runs this gate on Ubuntu and Windows
-against both VS Code 1.105.0 and the current stable version. Any exceeded budget
-fails that matrix cell.
+against both VS Code 1.105.0 and the current stable version. Shared hosted
+runners use regression ceilings of 1.2 seconds for activation and 275 MiB for
+RSS because their CPU performance and base Extension Host memory differ from
+the reference machine. The on-type, on-save, and growth budgets are unchanged.
+Any exceeded ceiling fails that matrix cell; the stricter 500-ms and 250-MiB
+release budgets remain enforced everywhere else.
 
 ## 2026-09-01 Windows reference
 

@@ -11,7 +11,8 @@ const TYPE_RUNS = 20;
 const SAVE_RUNS = 100;
 const MAX_TYPE_P95_MS = 500;
 const MAX_SAVE_P95_MS = 1000;
-const MAX_RSS_MIB = 250;
+const IS_GITHUB_HOSTED_RUNNER = process.env.GITHUB_ACTIONS === 'true';
+const MAX_RSS_MIB = IS_GITHUB_HOSTED_RUNNER ? 275 : 250;
 const MAX_RSS_GROWTH_PERCENT = 20;
 
 function percentile(values, fraction) {
