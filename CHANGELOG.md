@@ -44,6 +44,10 @@
 - Security: update production and release-tool dependency overrides to patched versions and enforce a zero-high production audit in pull-request and release pipelines.
 - Security: update dependency overrides and the lockfile to patched js-yaml, brace-expansion, undici, fast-uri, and related transitive versions.
 
+### Chore
+
+- Chore: publish the exact verified VSIX with matching changelog notes, public tag, and non-draft GitHub release through fail-closed release automation.
+
 ## 0.0.17
 
 ### Bugfix
