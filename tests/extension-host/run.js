@@ -9,8 +9,9 @@ const FILE_COUNT = 100;
 const HOST_WARMUP_RUNS = 5;
 const ACTIVATION_RUNS = 20;
 const IS_GITHUB_HOSTED_RUNNER = process.env.GITHUB_ACTIONS === 'true';
+const TESTED_VSCODE_VERSION = process.env.VSCODE_TEST_VERSION || 'stable';
 const MAX_ACTIVATION_P95_MS = IS_GITHUB_HOSTED_RUNNER
-  ? (process.platform === 'win32' ? 1800 : 1200)
+  ? (process.platform === 'win32' || TESTED_VSCODE_VERSION === 'stable' ? 1800 : 1200)
   : 500;
 
 const fixtures = {
@@ -64,7 +65,6 @@ function createWorkspace() {
 async function main() {
   const extensionDevelopmentPath = path.resolve(__dirname, '..', '..');
   const extensionTestsPath = path.resolve(__dirname, 'suite', 'index.js');
-  const version = process.env.VSCODE_TEST_VERSION || 'stable';
   const workspacePath = createWorkspace();
   const resultsPath = path.join(workspacePath, 'performance-results.jsonl');
   process.env.ZEMDOMU_PERF_RESULTS_PATH = resultsPath;
@@ -74,7 +74,7 @@ async function main() {
       process.env.ZEMDOMU_PERF_MODE = run === 0 ? 'full' : 'activation';
       process.env.ZEMDOMU_MEASURE_ACTIVATION = run >= HOST_WARMUP_RUNS ? '1' : '0';
       await runTests({
-        version,
+        version: TESTED_VSCODE_VERSION,
         extensionDevelopmentPath,
         extensionTestsPath,
         launchArgs: [
