@@ -24,6 +24,7 @@
 
 ### Docs
 
+- Docs: improve Marketplace discovery metadata and first-screen onboarding, with packaged, accessibly described visuals for a TSX diagnostic, JSX cross-component context, and Vue remediation.
 - Docs: align Marketplace copy, commands, settings, and status-bar wording with
   the approved semantic accessibility positioning, and clarify that the shipped
   heading rules do not require a first or page-level H1.

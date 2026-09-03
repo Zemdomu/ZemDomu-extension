@@ -22,6 +22,33 @@ function readEntries(archivePath) {
   });
 }
 
+function readTextEntry(archivePath, targetPath) {
+  return new Promise((resolve, reject) => {
+    yauzl.open(archivePath, { lazyEntries: true }, (openError, zipFile) => {
+      if (openError) return reject(openError);
+      zipFile.on('error', reject);
+      zipFile.on('entry', entry => {
+        if (entry.fileName !== targetPath) {
+          zipFile.readEntry();
+          return;
+        }
+        zipFile.openReadStream(entry, (streamError, stream) => {
+          if (streamError) return reject(streamError);
+          const chunks = [];
+          stream.on('error', reject);
+          stream.on('data', chunk => chunks.push(chunk));
+          stream.on('end', () => {
+            zipFile.close();
+            resolve(Buffer.concat(chunks).toString('utf8'));
+          });
+        });
+      });
+      zipFile.on('end', () => reject(new Error(`VSIX is missing ${targetPath}`)));
+      zipFile.readEntry();
+    });
+  });
+}
+
 (async () => {
   const archiveEntries = await readEntries(vsixPath);
   const extensionFiles = archiveEntries
@@ -34,8 +61,10 @@ function readEntries(archivePath) {
     'readme.md',
     'changelog.md',
     'LICENSE.txt',
-    'docs/USER_GUIDE.md',
     'images/icon.png',
+    'images/marketplace-cross-component.png',
+    'images/marketplace-diagnostic.png',
+    'images/marketplace-vue-remediation.png',
   ]) {
     assert.ok(extensionFiles.includes(required), `VSIX is missing ${required}`);
   }
@@ -60,9 +89,26 @@ function readEntries(archivePath) {
 
   assert.strictEqual(
     extensionFiles.length,
-    7,
+    9,
     `VSIX contains unexpected runtime files: ${extensionFiles.join(', ')}`
   );
+
+  const packagedReadme = await readTextEntry(vsixPath, 'extension/readme.md');
+  assert.match(packagedReadme, /## Try It in Under a Minute/);
+  assert.match(packagedReadme, /ZMD004: <img> tag missing alt attribute/);
+  assert.doesNotMatch(packagedReadme, /raw\/HEAD\/\.\.\/images/);
+  for (const imageName of [
+    'marketplace-diagnostic.png',
+    'marketplace-cross-component.png',
+    'marketplace-vue-remediation.png',
+  ]) {
+    assert.ok(
+      packagedReadme.includes(
+        `https://raw.githubusercontent.com/Zemdomu/ZemDomu-extension/main/images/${imageName}`
+      ),
+      `Packaged Marketplace README is missing ${imageName}`
+    );
+  }
   console.log(`VSIX archive contents passed (${extensionFiles.length} runtime files)`);
 })().catch(error => {
   console.error(error);

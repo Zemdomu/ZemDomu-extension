@@ -25,6 +25,7 @@ tsconfig.json
 .gitignore
 
 # Documentation and tests
+README.md
 docs/
 !docs/USER_GUIDE.md
 tests/
@@ -38,3 +39,6 @@ types/
 # Non-icon images
 images/*
 !images/icon.png
+!images/marketplace-diagnostic.png
+!images/marketplace-cross-component.png
+!images/marketplace-vue-remediation.png

@@ -1,16 +1,36 @@
-# ZemDomu VS Code Extension
+# ZemDomu — Semantic Accessibility Diagnostics for VS Code
 
-The ZemDomu VS Code Extension provides semantic accessibility static analysis
-for supported HTML, JSX, TSX, and Vue source. It surfaces diagnostics in the
-Problems panel and inline editor warnings.
+ZemDomu finds supported semantic HTML and accessibility defects in HTML, JSX,
+TSX, React, and Vue source. It reports each finding at the source and can follow
+supported local component composition when a structural conflict is hidden
+behind imports.
 
-## Usage
+## Try It in Under a Minute
 
-1. Install the extension.
+1. Install [ZemDomu from the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ZachariasErydBerlin.zemdomu).
 2. Open an `.html`, `.jsx`, `.tsx`, or `.vue` file.
-3. Save the file, type, or run `ZemDomu: Scan Workspace for Semantic Accessibility Issues`
+3. Save the file, type, or run
+   `ZemDomu: Scan Workspace for Semantic Accessibility Issues`
    (`Ctrl+Alt+Z` / `Cmd+Alt+Z`).
-4. Review results in the Problems panel and editor.
+4. Review the rule code, severity, file, line, and column in the editor or
+   Problems panel.
+
+For example, this TSX source produces
+`ZMD004: <img> tag missing alt attribute` at the image line:
+
+```tsx
+export function ProductCard({ product }) {
+  return <img src={product.image} />;
+}
+```
+
+![VS Code example showing ZMD004 at ProductCard.tsx line 5 for an image without alternative text.](https://raw.githubusercontent.com/Zemdomu/ZemDomu-extension/main/images/marketplace-diagnostic.png)
+
+Cross-component analysis is the distinction: when enabled, ZemDomu follows
+statically resolvable local React and Vue composition and adds supported page,
+component-path, and related-source context to diagnostics.
+
+![JSX example showing ZMD003 with the App, PageLayout, and ProductHero component path plus its related source location.](https://raw.githubusercontent.com/Zemdomu/ZemDomu-extension/main/images/marketplace-cross-component.png)
 
 ## Configuration
 
@@ -116,6 +136,15 @@ observed heading does not warn. `singleH1` reports additional `<h1>` elements
 but does not require one, so the current VS Code Extension does not report a
 missing first or page-level `<h1>`.
 
+## From Finding to Fix
+
+ZemDomu identifies supported structural requirements without inventing the
+author's meaning. When a fix needs a human-readable label, description, ARIA
+state, or hierarchy decision, supply that intent and scan again. A `TODO-ZMD`
+placeholder always requires author review.
+
+![Vue before-and-after example showing ZMD004 cleared after the author adds meaningful alternative text.](https://raw.githubusercontent.com/Zemdomu/ZemDomu-extension/main/images/marketplace-vue-remediation.png)
+
 ## What Static Analysis Cannot Prove
 
 ZemDomu finds source patterns; it cannot establish WCAG conformance. A passing
@@ -214,6 +243,13 @@ npm run package
 The bundling step produces `dist/extension.js` with runtime code inlined.
 `node_modules/` is excluded via `.vscodeignore`, keeping the packaged
 extension small.
+
+## Links
+
+- [Website and rule documentation](https://zemdomu.dev/)
+- [Report a bug or diagnostic problem](https://github.com/Zemdomu/ZemDomu-extension/issues)
+- [Extension source](https://github.com/Zemdomu/ZemDomu-extension)
+- [ZemDomu Core](https://www.npmjs.com/package/zemdomu)
 
 ## License
 

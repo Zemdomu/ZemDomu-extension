@@ -1,33 +1,32 @@
-# ZemDomu VS Code Extension
+# ZemDomu — Semantic Accessibility Diagnostics for VS Code
 
-> Catch supported semantic accessibility defects while you code.
+> Find semantic HTML and accessibility defects in HTML, JSX, TSX, React, and
+> Vue source before they become CI failures or late audit findings.
 
-The ZemDomu VS Code Extension brings semantic accessibility static analysis
-into the editor. It reports supported HTML, JSX, TSX, and Vue source defects
-inline and in the Problems panel, including named structural issues across
-statically resolvable React and Vue imports during workspace analysis.
+Most editor linters stop at one file. ZemDomu reports source-located diagnostics
+inline and in the Problems panel, then follows supported local component
+composition to expose structural conflicts hidden behind imports. It provides
+WCAG context without claiming conformance.
 
-Get a diagnostic at the source before the defect becomes a late browser or
-audit finding.
+## Try It in Under a Minute
 
-## Scope and Limitations
+1. Install [**ZemDomu** from the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ZachariasErydBerlin.zemdomu).
+2. Open any `.html`, `.jsx`, `.tsx`, or `.vue` file.
+3. Save the file, or run
+   `ZemDomu: Scan Workspace for Semantic Accessibility Issues`
+   (`Ctrl+Alt+Z` / `Cmd+Alt+Z`).
 
-ZemDomu analyzes source markup; it cannot establish WCAG conformance. Use it
-alongside rendered-DOM testing, keyboard review, browser accessibility tools,
-and assistive-technology testing. Runtime state, CSS, dynamic or bound values,
-conditional rendering, and slotted content can change the accessible result
-after static analysis.
+For example, save this as `ProductCard.tsx`:
 
-Linting runs locally in the VS Code Extension Host. ZemDomu does not transmit
-source files or diagnostics. Diagnostic documentation links open only when you
-choose to follow them.
+```tsx
+export function ProductCard({ product }) {
+  return <img src={product.image} />;
+}
+```
 
-## What It Is
+ZemDomu reports `ZMD004: <img> tag missing alt attribute` at the source line.
 
-The ZemDomu VS Code Extension analyzes HTML, JSX, TSX, and Vue templates. It
-integrates with inline diagnostics, the Problems panel, workspace scans, and
-quick fixes so semantic feedback becomes part of normal development rather than
-an extra review step.
+![VS Code example showing ZMD004 at ProductCard.tsx line 5 for an image without alternative text.](images/marketplace-diagnostic.png)
 
 ## Why ZemDomu
 
@@ -40,6 +39,8 @@ project-aware semantic structure analysis while you code.
   Vue imports.
 - Built-in quick fixes for common remediation paths.
 
+![JSX example showing ZMD003 with the App, PageLayout, and ProductHero component path plus its related source location.](images/marketplace-cross-component.png)
+
 ## Features
 
 - Lints HTML, JSX, TSX, and Vue templates with semantic rules.
@@ -49,13 +50,25 @@ project-aware semantic structure analysis while you code.
 - Quick fixes for common missing attributes and semantic issues.
 - Optional verbose logging and performance diagnostics.
 
-## Quick Start
+## From Finding to Fix
 
-1. Install from the VS Code Marketplace or search for `ZemDomu` in Extensions.
-2. Open an `.html`, `.jsx`, `.tsx`, or `.vue` file.
-3. Save the file or run `ZemDomu: Scan Workspace for Semantic Accessibility Issues`
-   (`Ctrl+Alt+Z` / `Cmd+Alt+Z`).
-4. Review findings in the Problems panel and editor.
+ZemDomu identifies supported structural requirements without inventing the
+author's meaning. When a fix needs a human-readable label, description, ARIA
+state, or hierarchy decision, you supply that intent and then scan again.
+
+![Vue before-and-after example showing ZMD004 cleared after the author adds meaningful alternative text.](images/marketplace-vue-remediation.png)
+
+## Scope and Limitations
+
+ZemDomu analyzes source markup; it cannot establish WCAG conformance. Use it
+alongside rendered-DOM testing, keyboard review, browser accessibility tools,
+and assistive-technology testing. Runtime state, CSS, dynamic or bound values,
+conditional rendering, and slotted content can change the accessible result
+after static analysis.
+
+Linting runs locally in the VS Code Extension Host. ZemDomu does not transmit
+source files or diagnostics. Diagnostic documentation links open only when you
+choose to follow them.
 
 ## Configuration
 

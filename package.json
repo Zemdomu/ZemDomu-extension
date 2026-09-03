@@ -2,7 +2,7 @@
   "name": "zemdomu",
   "displayName": "ZemDomu VS Code Extension",
   "publisher": "ZachariasErydBerlin",
-  "description": "Semantic accessibility static analysis for HTML, JSX, TSX, and Vue with supported cross-component context",
+  "description": "Semantic HTML and accessibility diagnostics for HTML, JSX, TSX, React, and Vue with supported cross-component analysis",
   "repository": {
     "type": "git",
     "url": "https://github.com/Zemdomu/ZemDomu-extension.git"
@@ -10,13 +10,29 @@
   "bugs": {
     "url": "https://github.com/Zemdomu/ZemDomu-extension/issues"
   },
+  "homepage": "https://zemdomu.dev/",
   "funding": "https://buymeacoffee.com/zemdomu",
   "version": "0.0.18",
   "engines": {
     "vscode": "^1.105.0"
   },
   "categories": [
-    "Linters"
+    "Linters",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "semantic HTML",
+    "accessibility",
+    "a11y",
+    "WCAG",
+    "HTML",
+    "JSX",
+    "TSX",
+    "React",
+    "Vue",
+    "document structure",
+    "diagnostics",
+    "linter"
   ],
   "activationEvents": [
     "onLanguage:html",
@@ -393,9 +409,9 @@
     "watch": "tsc -w",
     "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --minify --external:vscode --outfile=dist/extension.js",
     "vscode:prepublish": "npm test && npm run bundle",
-    "package": "vsce package --no-dependencies --out dist/zemdomu.vsix && node tests/package-contents.test.js && node tests/package-size.test.js --vsix",
+    "package": "vsce package --no-dependencies --readme-path docs/USER_GUIDE.md --out dist/zemdomu.vsix && node tests/package-contents.test.js && node tests/package-size.test.js --vsix",
     "test:rule-oracle": "node tests/run-rule-oracle.js",
-    "test": "npm run compile && npm run bundle && node tests/run-modes.test.js && node tests/issue-tracker.test.js && node tests/race-stress.test.js && node tests/inline-disable.test.js && node tests/multi-root.test.js && node tests/linter-labels.test.js && node tests/all-rules.test.js && node tests/rule-surface.test.js && node tests/canonical-diagnostics.test.js && node tests/unique-ids.test.js && node tests/cross-component-extension.test.js && node tests/extension-cross-component.test.js && node tests/vue-extension.test.js && node tests/quick-fixes.test.js && node tests/full-document-quick-fixes.test.js && node tests/fixture-behavior.test.js && node tests/user-facing-text.test.js && node tests/smoke-test.test.js && node tests/npm-link.test.js && node tests/package-size.test.js --bundle && node tests/extension-host-exit.test.js",
+    "test": "npm run compile && npm run bundle && node tests/run-modes.test.js && node tests/issue-tracker.test.js && node tests/race-stress.test.js && node tests/inline-disable.test.js && node tests/multi-root.test.js && node tests/linter-labels.test.js && node tests/all-rules.test.js && node tests/rule-surface.test.js && node tests/canonical-diagnostics.test.js && node tests/unique-ids.test.js && node tests/cross-component-extension.test.js && node tests/extension-cross-component.test.js && node tests/vue-extension.test.js && node tests/quick-fixes.test.js && node tests/full-document-quick-fixes.test.js && node tests/fixture-behavior.test.js && node tests/user-facing-text.test.js && node tests/marketplace-listing.test.js && node tests/smoke-test.test.js && node tests/npm-link.test.js && node tests/package-size.test.js --bundle && node tests/extension-host-exit.test.js",
     "test:extension-host": "node tests/extension-host/run.js",
     "test:vsix-install": "node tests/install-vsix.test.js",
     "benchmark:workspace": "node tests/workspace-benchmark.js",
