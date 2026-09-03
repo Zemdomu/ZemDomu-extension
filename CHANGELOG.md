@@ -42,6 +42,7 @@
 
 ### Security
 
+- Security: refresh the VSIX publishing toolchain to a patched `qs` release after the previous override became vulnerable.
 - Security: update production and release-tool dependency overrides to patched versions and enforce a zero-high production audit in pull-request and release pipelines.
 
 ### Chore
