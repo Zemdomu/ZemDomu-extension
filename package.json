@@ -435,7 +435,7 @@
     "esbuild": "^0.28.2",
     "jest": "^30.4.2",
     "parse5": "^7.3.0",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "yauzl": "^3.4.0"
   },
   "overrides": {
