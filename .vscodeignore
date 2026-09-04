@@ -28,6 +28,7 @@ tsconfig.json
 README.md
 docs/
 !docs/USER_GUIDE.md
+PUBLIC_REPOSITORY_POLICY.md
 tests/
 
 # Type declaration files
