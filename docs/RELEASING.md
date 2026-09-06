@@ -23,6 +23,22 @@ platform-specific dependency or defect is discovered.
 6. Confirm the publish workflow uploads `dist/zemdomu.vsix`, then install the
    Marketplace build in a clean profile for the final release smoke check.
 
+## Marketplace pre-release
+
+Use an opt-in Marketplace pre-release when the candidate needs real-user beta
+coverage before stable promotion:
+
+1. Keep the stable release gate and acceptance criteria unchanged.
+2. Run **Publish VS Code Extension** from `main` with `bump: minor` and
+   `channel: pre-release`. From `0.0.18`, this creates `0.1.0`.
+3. Confirm the Marketplace offers **Install Pre-Release Version** and the public
+   GitHub release is marked Pre-release, not Latest.
+4. Collect the anonymized beta results described in
+   [RELEASE_CANDIDATE_BETA.md](RELEASE_CANDIDATE_BETA.md).
+5. Promote only after the beta and remaining launch gates pass. Marketplace
+   pre-release and stable versions must use distinct `major.minor.patch`
+   numbers; do not use SemVer suffixes such as `-rc.1`.
+
 ## Failed release before Marketplace publication
 
 - Keep the failed tag as evidence while diagnosing the failure.

@@ -30,6 +30,11 @@ Cross-component analysis is the distinction: when enabled, ZemDomu follows
 statically resolvable local React and Vue composition and adds supported page,
 component-path, and related-source context to diagnostics.
 
+Using the release candidate? Follow the privacy-safe
+[beta test guide](https://github.com/Zemdomu/ZemDomu-extension/blob/main/docs/RELEASE_CANDIDATE_BETA.md)
+and return sanitized feedback through the
+[1.0 beta issue](https://github.com/Zemdomu/ZemDomu-extension/issues/39).
+
 ![JSX example showing ZMD003 with the App, PageLayout, and ProductHero component path plus its related source location.](https://raw.githubusercontent.com/Zemdomu/ZemDomu-extension/main/images/marketplace-cross-component.png)
 
 ## Configuration

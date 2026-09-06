@@ -18,12 +18,14 @@
 
 ### Feature
 
+- Feature: offer release candidates through VS Code Marketplace's opt-in pre-release channel while keeping stable promotion gated on real-user evidence.
 - Feature: present Core's canonical page-aware diagnostics in VS Code with rule codes, severity, page and component paths, related source locations, and conservative suggestions.
 - Feature: report workspace-scan discovery, analysis, publication, and completion phases with file counts and explicit screen-reader status labels.
 - Feature: expose `crossComponentDepth` as a supported setting and analyze each folder in a multi-root workspace as an independent project root.
 
 ### Docs
 
+- Docs: add a privacy-safe release-candidate beta guide with recruitment copy, consent wording, a repeatable real-repository test, and explicit launch-gate calculations.
 - Docs: improve Marketplace discovery metadata and first-screen onboarding, with packaged, accessibly described visuals for a TSX diagnostic, JSX cross-component context, and Vue remediation.
 - Docs: align Marketplace copy, commands, settings, and status-bar wording with
   the approved semantic accessibility positioning, and clarify that the shipped
