@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.1.0
+
 ### Bugfix
 
 - Bugfix: enforce the quick-fix safety contract across HTML, JSX/TSX, and Vue by requiring exact or unique diagnostic targets and a visible `TODO-ZMD` marker whenever author input is still needed.
