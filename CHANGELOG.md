@@ -1,5 +1,13 @@
 ## Unreleased
 
+### Bugfix
+
+- Bugfix: package and clean-install the inspected VSIX with Marketplace pre-release metadata before publishing it to the opt-in channel.
+
+### Security
+
+- Security: update the release-toolchain `js-yaml` override to `4.3.2` after a high-severity denial-of-service advisory affected the previous pin.
+
 ## 0.1.0
 
 ### Bugfix

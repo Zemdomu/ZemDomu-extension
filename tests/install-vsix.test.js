@@ -117,7 +117,12 @@ async function main() {
       resolvedProfile.startsWith(`${resolvedTemp}${path.sep}`),
       'Refusing to remove a profile outside the system temp directory'
     );
-    fs.rmSync(resolvedProfile, { recursive: true, force: true });
+    fs.rmSync(resolvedProfile, {
+      recursive: true,
+      force: true,
+      maxRetries: process.platform === 'win32' ? 10 : 0,
+      retryDelay: 250,
+    });
   }
 
   console.log(`Clean-profile VSIX install and activation passed on VS Code ${version}`);

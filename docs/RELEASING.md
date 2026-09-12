@@ -10,16 +10,16 @@ systems cover both supported CI shell families. Add macOS before release if a
 platform-specific dependency or defect is discovered.
 
 1. Release ZemDomu Core first when the extension needs a new Core version.
-2. Update `package.json` and `package-lock.json` to the intended extension
-   version and add the customer-facing changes to `CHANGELOG.md`.
-3. From `packages/ZemDomu-Extension`, run `npm run release`.
+2. Add the customer-facing changes to `CHANGELOG.md`. The shared workflow
+   updates `package.json`, `package-lock.json`, and the versioned changelog
+   section; do not create those release changes by hand.
+3. From `packages/ZemDomu-Extension`, run `npm run release` as a local gate.
 4. Confirm the command reports zero audit findings, passes the full test suite,
    keeps the bundle below 5 MiB, keeps the VSIX below 2 MiB, inspects the
    archive contents, installs the VSIX in a clean profile, and activates that
    installed artifact in a real VS Code Extension Host.
-5. Create and push the tag `v<package-version>`. The publish workflow reruns
-   the Windows/Linux and oldest/stable Extension Host matrix, and rejects any
-   tag that does not exactly match `package.json`.
+5. Start the package-specific publish workflow from `main`. Do not create or
+   push a release tag by hand.
 6. Confirm the publish workflow uploads `dist/zemdomu.vsix`, then install the
    Marketplace build in a clean profile for the final release smoke check.
 
@@ -29,8 +29,10 @@ Use an opt-in Marketplace pre-release when the candidate needs real-user beta
 coverage before stable promotion:
 
 1. Keep the stable release gate and acceptance criteria unchanged.
-2. Run **Publish VS Code Extension** from `main` with `bump: minor` and
-   `channel: pre-release`. From `0.0.18`, this creates `0.1.0`.
+2. Run **Publish VS Code Extension** from `main` with `bump: patch` and
+   `channel: pre-release`. The first `0.1.0` attempt reserved an internal tag
+   but failed before Marketplace publication because its VSIX lacked
+   pre-release metadata; the forward fix therefore publishes `0.1.1`.
 3. Confirm the Marketplace offers **Install Pre-Release Version** and the public
    GitHub release is marked Pre-release, not Latest.
 4. Collect the anonymized beta results described in
