@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.1.1
+
 ### Bugfix
 
 - Bugfix: package and clean-install the inspected VSIX with Marketplace pre-release metadata before publishing it to the opt-in channel.

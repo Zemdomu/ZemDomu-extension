@@ -12,7 +12,7 @@
   },
   "homepage": "https://zemdomu.dev/",
   "funding": "https://buymeacoffee.com/zemdomu",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "engines": {
     "vscode": "^1.105.0"
   },
