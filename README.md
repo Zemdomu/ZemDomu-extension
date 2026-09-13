@@ -193,4 +193,6 @@ performance diagnostics, see the packaged [user guide](docs/USER_GUIDE.md).
 
 ## License
 
-MIT (c) 2025 Zacharias Eryd Berlin
+The ZemDomu VS Code Extension is open source under the MIT License.
+
+Copyright (c) 2025 Zacharias Eryd Berlin
