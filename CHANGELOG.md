@@ -2,6 +2,7 @@
 
 ### Chore
 
+- Chore: remove unused Jest, Babel traversal, Babel types, and redundant Babel traversal typings from the development dependency graph.
 - Chore: make the existing MIT license explicit in package metadata.
 
 ## 0.1.1
