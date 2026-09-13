@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Chore
+
+- Chore: make the existing MIT license explicit in package metadata.
+
 ## 0.1.1
 
 ### Bugfix
