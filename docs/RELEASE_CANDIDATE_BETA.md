@@ -1,8 +1,7 @@
 # ZemDomu Extension Release-Candidate Beta
 
-This two-week beta checks whether the ZemDomu VS Code Extension is useful and
-safe in real HTML, React, and Vue projects before version 1.0. The release gate
-requires at least 10 external testers across at least 5 repositories.
+This beta checks whether the ZemDomu VS Code Extension is useful and safe in
+real HTML, React, and Vue projects before version 1.0.
 
 ## Before You Start
 
@@ -88,30 +87,3 @@ Sanitized notes:
 For a reproducible defect, use the repository's guided
 [bug and diagnostic report forms](https://github.com/Zemdomu/ZemDomu-extension/issues/new/choose).
 Remove private code, credentials, personal data, and identifying paths first.
-
-## Release-Gate Calculation
-
-Track only participant codes and aggregate counts in the H-10 Trello card.
-
-- **Coverage:** 10 or more external participants and 5 or more repositories,
-  with HTML, React, and Vue represented across the cohort.
-- **Disputed/false-positive rate:**
-  `(disputed + false positives) / findings reviewed x 100`; must be below 5%.
-- **Usefulness:** sum of participant ratings divided by completed responses;
-  must be at least 4.0 out of 5.
-- **Stop-ship:** any unresolved P0/P1 defect, crash, data-loss report, unsafe
-  quick fix, or serious false positive blocks version 1.0 unless explicitly
-  resolved or accepted by the owner.
-
-The two-week window begins when the first tester installs the candidate. Do not
-record the beta as complete until the full window ends and all submitted
-feedback has been reviewed.
-
-## Recruitment Message
-
-> Would you test the ZemDomu VS Code Extension release candidate in one real
-> HTML, React, or Vue repository? The test takes about 15-25 minutes, runs
-> locally, and does not upload source or telemetry. Please use a branch or
-> disposable copy. We need short anonymized feedback now and any follow-up
-> observations during a two-week beta. Install the pre-release from the VS Code
-> Marketplace and follow the linked beta guide.

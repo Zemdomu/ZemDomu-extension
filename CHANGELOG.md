@@ -5,6 +5,10 @@
 - Chore: remove unused Jest, Babel traversal, Babel types, and redundant Babel traversal typings from the development dependency graph.
 - Chore: make the existing MIT license explicit in package metadata.
 
+### Docs
+
+- Docs: keep the beta guide focused on tester instructions and privacy-safe feedback.
+
 ## 0.1.1
 
 ### Bugfix
@@ -42,7 +46,7 @@
 
 ### Docs
 
-- Docs: add a privacy-safe release-candidate beta guide with recruitment copy, consent wording, a repeatable real-repository test, and explicit launch-gate calculations.
+- Docs: add a release-candidate beta guide with consent wording, privacy guidance, and a repeatable real-repository test.
 - Docs: improve Marketplace discovery metadata and first-screen onboarding, with packaged, accessibly described visuals for a TSX diagnostic, JSX cross-component context, and Vue remediation.
 - Docs: align Marketplace copy, commands, settings, and status-bar wording with
   the approved semantic accessibility positioning, and clarify that the shipped
