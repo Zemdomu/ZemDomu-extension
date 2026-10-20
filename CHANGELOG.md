@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Security
+
+- Security: update to Core 2.0.0 and refresh extension packaging dependencies, removing vulnerable HTTP, URI parsing, and glob dependency chains.
+
 ### Chore
 
 - Chore: remove unused Jest, Babel traversal, Babel types, and redundant Babel traversal typings from the development dependency graph.
