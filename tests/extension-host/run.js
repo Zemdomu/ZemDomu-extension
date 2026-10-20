@@ -79,6 +79,10 @@ async function main() {
         extensionTestsPath,
         launchArgs: [
           workspacePath,
+          // GitHub's Xvfb session has no hardware display for GPU rendering.
+          ...(process.platform === 'linux' && IS_GITHUB_HOSTED_RUNNER
+            ? ['--disable-gpu']
+            : []),
           '--disable-extensions',
           '--disable-workspace-trust',
           '--skip-welcome',
