@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.1.2
+
 ### Security
 
 - Security: update to Core 2.0.0 and refresh extension packaging dependencies, removing vulnerable HTTP, URI parsing, and glob dependency chains.
