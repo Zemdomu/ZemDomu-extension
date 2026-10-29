@@ -1,5 +1,7 @@
 # ZemDomu — Semantic Accessibility Diagnostics for VS Code
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Zemdomu/ZemDomu-extension/badge)](https://scorecard.dev/viewer/?uri=github.com/Zemdomu/ZemDomu-extension)
+
 > Find semantic HTML and accessibility defects in HTML, JSX, TSX, React, and
 > Vue source before they become CI failures or late audit findings.
 

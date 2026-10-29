@@ -3,8 +3,29 @@ const fs = require('fs');
 const path = require('path');
 
 function readCoreRuleSurface() {
+  const localCoreSource = path.resolve(__dirname, '../../ZemDomu-Core/src/rule-codes.ts');
+  if (!fs.existsSync(localCoreSource)) {
+    // Standalone public checkouts use the same published Core as the runtime.
+    // Canonical monorepo checks below continue to compare sibling source.
+    const { RULE_CODES, PAGE_ONLY_RULES } = require('zemdomu');
+    assert.ok(
+      RULE_CODES && typeof RULE_CODES === 'object' && !Array.isArray(RULE_CODES),
+      'Published Core must export RULE_CODES'
+    );
+    const allRules = Object.keys(RULE_CODES);
+    assert.ok(allRules.length > 0, 'Published Core RULE_CODES must not be empty');
+    assert.ok(
+      Object.values(RULE_CODES).every(code => typeof code === 'string' && /^ZMD\d{3}$/.test(code)),
+      'Published Core RULE_CODES must contain canonical diagnostic codes'
+    );
+    assert.ok(
+      Array.isArray(PAGE_ONLY_RULES) && PAGE_ONLY_RULES.every(rule => typeof rule === 'string'),
+      'Published Core must export PAGE_ONLY_RULES as rule names'
+    );
+    return { allRules, pageOnlyRules: PAGE_ONLY_RULES };
+  }
   const source = fs.readFileSync(
-    path.resolve(__dirname, '../../ZemDomu-Core/src/rule-codes.ts'),
+    localCoreSource,
     'utf8'
   );
   const body = source.match(/const RULE_CODES = \{([\s\S]*?)\} as const/);

@@ -29,6 +29,9 @@ README.md
 docs/
 !docs/USER_GUIDE.md
 PUBLIC_REPOSITORY_POLICY.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
 tests/
 
 # Type declaration files
