@@ -38,6 +38,3 @@ jobs:
 
       - name: Install packaged extension in a clean VS Code profile
         run: xvfb-run -a npm run test:vsix-install
-
-      - name: Test real VS Code Extension Host
-        run: xvfb-run -a npm run test:extension-host

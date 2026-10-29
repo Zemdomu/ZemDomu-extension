@@ -13,10 +13,11 @@ Put local plans, agent context, investigation notes, security work,
 and release coordination in `.internal/`; that directory is ignored and must
 never be force-added.
 
-Public CI, CodeQL, and OpenSSF Scorecard workflows live in `.github/workflows/`;
-their jobs run only in this public product repository. `.github/dependabot.yml`
-tracks npm and workflow dependencies. Keep workflow actions pinned to full
-commit SHAs and grant write permissions only to the jobs that need them.
+Public CI and OpenSSF Scorecard workflows live in `.github/workflows/`; their
+jobs run only in this public product repository. CodeQL uses GitHub-managed
+default setup. `.github/dependabot.yml` tracks npm and workflow dependencies.
+Keep workflow actions pinned to full commit SHAs and grant write permissions
+only to the jobs that need them.
 
 Never store credentials, tokens, private keys, customer data, private URLs, or
 real environment values in this repository. From the canonical ZemDomu
