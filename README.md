@@ -191,6 +191,14 @@ performance diagnostics, see the packaged [user guide](docs/USER_GUIDE.md).
 - ZemDomu Core: https://www.npmjs.com/package/zemdomu
 - Website and docs: https://zemdomu.dev/
 
+## Support ZemDomu
+
+If ZemDomu is useful in your workflow, consider [starring the extension on GitHub](https://github.com/Zemdomu/ZemDomu-extension/stargazers).
+
+Found a bug or an unexpected diagnostic? [Open an issue](https://github.com/ZemDomu/ZemDomu-extension/issues)
+with a small reproduction, removing private code and credentials before sharing.
+For feedback across ZemDomu products, [join the Meta discussions](https://github.com/Zemdomu/ZemDomu/discussions).
+
 ## License
 
 The ZemDomu VS Code Extension is open source under the MIT License.

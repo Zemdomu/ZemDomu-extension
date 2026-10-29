@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Docs
+
+- Docs: add contribution guidance, community conduct and private security reporting policies, a feature request form, pull request guidance, and community support links.
+
 ## 0.1.2
 
 ### Security

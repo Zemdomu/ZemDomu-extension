@@ -9,7 +9,7 @@ body:
     id: extension-version
     attributes:
       label: ZemDomu version
-      placeholder: 0.0.17
+      description: Include whether you use the stable or pre-release extension.
     validations:
       required: true
   - type: input
@@ -28,6 +28,13 @@ body:
         - Linux
         - macOS
         - Other
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow and settings
+      description: Include the file language, run mode, relevant zemdomu settings, and whether you use a multi-root workspace or configured pages.
     validations:
       required: true
   - type: textarea

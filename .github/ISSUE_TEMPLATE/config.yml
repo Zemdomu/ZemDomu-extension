@@ -3,3 +3,12 @@ contact_links:
   - name: ZemDomu documentation
     url: https://zemdomu.dev/docs/installation/vscode
     about: Review installation, configuration, and troubleshooting guidance before reporting an issue.
+  - name: Core CLI and API issues
+    url: https://github.com/Zemdomu/ZemDomu-core/issues
+    about: Report CLI, Node.js API, or shared analysis problems.
+  - name: GitHub Action issues
+    url: https://github.com/Zemdomu/ZemDomu-action/issues
+    about: Report Action configuration or CI reporting problems.
+  - name: Questions and cross-product feedback
+    url: https://github.com/Zemdomu/ZemDomu/discussions
+    about: Ask questions and share examples or ideas across ZemDomu products.

@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest an improvement to the VS Code extension.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: For ideas across products, use https://github.com/Zemdomu/ZemDomu/discussions. Remove private code, credentials, personal data, and identifying paths from examples.
+  - type: input
+    id: version
+    attributes:
+      label: ZemDomu and VS Code versions
+      description: Include whether you use the stable or pre-release extension.
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow and problem
+      description: Describe the file language, run mode, relevant settings, and task you cannot complete today.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Minimal sanitized example
+      description: Show a small example or steps that demonstrate the need, including imported components when relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the expected result and any alternatives or workarounds you have tried.
+    validations:
+      required: true

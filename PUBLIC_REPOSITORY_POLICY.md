@@ -3,9 +3,13 @@
 This repository is public. Assume every tracked file, commit, CI artifact, and
 VSIX entry can be read by anyone.
 
-Public Markdown is limited to `README.md`, `CHANGELOG.md`, this policy, and the
-explicitly approved user, dependency, performance, and release documents in
-`docs/`. Put local plans, agent context, investigation notes, security work,
+Public Markdown is limited to `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
+`CODE_OF_CONDUCT.md`, `SECURITY.md`, this policy,
+`.github/PULL_REQUEST_TEMPLATE.md`, and the explicitly approved user,
+dependency, performance, and release documents in `docs/`. Contributor issue
+forms and routing configuration belong in `.github/ISSUE_TEMPLATE/`.
+
+Put local plans, agent context, investigation notes, security work,
 and release coordination in `.internal/`; that directory is ignored and must
 never be force-added.
 
