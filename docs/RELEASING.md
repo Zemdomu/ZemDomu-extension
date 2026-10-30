@@ -1,5 +1,43 @@
 # ZemDomu VS Code Extension Release Runbook
 
+## Open VSX distribution
+
+Distribute the same inspected `zemdomu.vsix` bytes already attached to the
+matching GitHub release. Do not rebuild, bump a version, or promote a
+Marketplace pre-release while adding another registry. Version 0.1.3 remains
+a pre-release. Keep the publisher namespace exactly `ZachariasErydBerlin`.
+
+For the first upload, sign in at [Open VSX](https://open-vsx.org/publish), link
+the maintainer's Eclipse account, and review its Publisher Agreement. Create
+the matching namespace and upload the existing release VSIX. Check its name,
+version and pre-release status before confirming publication, then verify the
+listing and downloaded SHA-256 against the GitHub asset. No access token is
+needed for this browser upload.
+
+For subsequent releases, the manual **Distribute reviewed Extension to Open
+VSX** workflow verifies the selected release, reviewed SHA-256, channel,
+runtime-only archive and matching manifest/package identities. It defaults
+to a dry run and retains the verified artifact for inspection. Publication
+uses those identical bytes, never executes their runtime, and never changes
+the Marketplace release.
+
+Before enabling a non-dry run, claim namespace ownership through Open VSX and
+register a [trusted publisher](https://github.com/eclipse-openvsx/openvsx/wiki/Trusted-Publishing)
+for `Zemdomu/ZemDomu-extension`, workflow `publish-open-vsx.yml`, environment
+`open-vsx`, extension `zemdomu`. A namespace contributor alone cannot register
+this policy. The first active version must exist before registration. Keep
+the environment and workflow names exact. Configure the GitHub environment's
+deployment-branch policy to allow only `main`, with the intended review rules:
+Open VSX registrations themselves accept any ref running the registered
+workflow filename. An editable workflow `if` guard alone is not this external
+branch restriction. The workflow uses a short-lived OIDC publishing
+token and does not require an `OVSX_PAT` repository secret. A successful dry
+run does not establish that this external registration is complete.
+
+Verify the registry's returned version and channel after every upload. An
+already existing version is a review stop, not a reason to suppress errors
+or replace its bytes. Do not silently delete or unpublish an existing version.
+
 ## Release checks
 
 The pre-publish gate runs the real Extension Host suite on Windows and Linux

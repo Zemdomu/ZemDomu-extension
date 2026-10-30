@@ -1,0 +1,106 @@
+name: Distribute reviewed Extension to Open VSX
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact existing GitHub release version, without v
+        required: true
+        type: string
+      expected_sha256:
+        description: Reviewed SHA-256 of the existing zemdomu.vsix release asset
+        required: true
+        type: string
+      prerelease:
+        description: Must match both the GitHub release and packaged VSIX channel
+        required: true
+        default: true
+        type: boolean
+      dry_run:
+        description: Verify the artifact without uploading to Open VSX
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: open-vsx-distribution
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.repository == 'Zemdomu/ZemDomu-extension' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.1
+          package-manager-cache: false
+      - name: Install locked verification tooling without install scripts
+        run: npm ci --ignore-scripts --prefix .github/open-vsx-tools
+      - name: Test distribution boundaries offline
+        run: node --test .github/tests/open-vsx.test.mjs
+      - name: Download and inspect exact existing release bytes
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
+          RELEASE_PRERELEASE: ${{ inputs.prerelease }}
+        run: node .github/scripts/prepare-open-vsx.mjs
+      - name: Retain verified distribution artifact
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verified-open-vsx
+          path: ${{ steps.prepare.outputs.directory }}/
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: false
+
+  publish:
+    needs: verify
+    if: >-
+      !inputs.dry_run && github.repository == 'Zemdomu/ZemDomu-extension' &&
+      github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: open-vsx
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.1
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.verify.outputs.artifact_id }}
+          path: ${{ runner.temp }}/open-vsx-upload
+          merge-multiple: true
+      - name: Install locked registry tooling without install scripts
+        run: npm ci --ignore-scripts --prefix .github/open-vsx-tools
+      - name: Recheck downloaded artifact digest
+        env:
+          EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
+          VSIX: ${{ runner.temp }}/open-vsx-upload/zemdomu.vsix
+        run: node --input-type=module -e 'import fs from "node:fs"; import {sha256} from "./.github/scripts/prepare-open-vsx.mjs"; if(sha256(fs.readFileSync(process.env.VSIX)) !== process.env.EXPECTED_SHA256) process.exit(1);'
+      - name: Publish identical bytes using scoped trusted publishing
+        env:
+          VSIX: ${{ runner.temp }}/open-vsx-upload/zemdomu.vsix
+        shell: bash
+        run: |
+          set -euo pipefail
+          .github/open-vsx-tools/node_modules/.bin/ovsx publish "$VSIX" --registryUrl https://open-vsx.org --trusted-publishing
