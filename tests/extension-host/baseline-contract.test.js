@@ -91,7 +91,8 @@ test('control contributes identical static schemas but no product ID, entry poin
   assert.notStrictEqual(`${control.publisher}.${control.name}`, `${product.publisher}.${product.name}`);
   assert.strictEqual(control.main, undefined);
   assert.strictEqual(control.contributes.commands, undefined);
-  assert.deepStrictEqual(control.activationEvents, []);
+  // VS Code rejects activationEvents (even []) without a main/browser entry.
+  assert.strictEqual(control.activationEvents, undefined);
   assert.strictEqual(control.dependencies, undefined);
 });
 

@@ -80,7 +80,6 @@ function controlManifest(productManifest) {
     publisher: 'local-diagnostic',
     version: '0.0.0',
     engines: { vscode: productManifest.engines.vscode },
-    activationEvents: [],
     contributes: { configuration: productManifest.contributes.configuration },
   };
 }

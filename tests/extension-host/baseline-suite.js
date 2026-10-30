@@ -112,6 +112,11 @@ async function run() {
     assert.ok(workspace, 'One fixture workspace is required');
     assert.strictEqual(fixtureIdentity(workspace).sha256, config.fixtureSha256);
     assert.strictEqual(sha256(fs.readFileSync(mainPath)), config.bundleSha256, 'Expected product bundle must be identical in both conditions');
+    report.configurationSchema = {
+      defaultRun: vscode.workspace.getConfiguration('zemdomu').inspect('run')?.defaultValue,
+      expectedDefaultRun: manifest.contributes.configuration.properties['zemdomu.run'].default,
+    };
+    assert.strictEqual(report.configurationSchema.defaultRun, report.configurationSchema.expectedDefaultRun, 'Both conditions must register the identical static configuration schema');
     report.product.pre = productState(id, config.productRoot, mainPath);
     if (!treatment) {
       assert.strictEqual(report.product.pre.registered, false, 'Control must not register ZemDomu');
