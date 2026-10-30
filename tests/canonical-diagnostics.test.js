@@ -88,6 +88,24 @@ assert.strictEqual(informational.code, 'ZMD022');
   assert.strictEqual(canonicalCalls, 1);
   assert.ok(isCanonicalLintResult(canonicalMap.get(primaryFile)[0]));
 
+  const dependencyDiagnostic = {
+    ...diagnostic,
+    severity: 'info',
+    source: { file: componentFile, line: 1, column: 2 },
+    relatedLocations: [{ source: { file: primaryFile, line: 0, column: 0 } }],
+  };
+  const dependencyMap = await lintProjectForPresentation({
+    async lintPageDiagnostics() { return [dependencyDiagnostic]; },
+  }, [primaryFile]);
+  assert.deepStrictEqual(dependencyMap.get(primaryFile), [], 'Entries without findings must remain represented');
+  const dependencyResult = dependencyMap.get(componentFile)[0];
+  assert.strictEqual(dependencyResult.filePath, componentFile, 'Imported-file findings must be grouped under their actual file');
+  assert.strictEqual(dependencyResult.severity, 'warning', 'Legacy presentation must retain an informational finding as a warning');
+  assert.deepStrictEqual(dependencyResult.related, [{ filePath: primaryFile, line: 0, column: 0 }]);
+  const dependencyVscode = canonicalDiagnosticToVscode(dependencyDiagnostic);
+  assert.strictEqual(dependencyVscode.relatedInformation[0].message, 'Related location');
+  assert.strictEqual(dependencyVscode.relatedInformation[0].location.uri.fsPath, primaryFile);
+
   console.log('Canonical diagnostic adapter tests passed');
 })().catch((error) => {
   console.error('Canonical diagnostic adapter tests failed');
