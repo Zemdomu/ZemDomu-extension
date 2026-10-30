@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Security
+
+- Security: provide verifiable Sigstore signatures for GitHub release downloads.
+
 ### Docs
 
 - Docs: add contribution guidance, community conduct and private security reporting policies, a feature request form, pull request guidance, and community support links.
