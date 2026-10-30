@@ -8,11 +8,17 @@ permissions:
 
 jobs:
   performance:
+    name: Extension Host (${{ matrix.os }}, VS Code ${{ matrix.vscode-version }})
     if: github.repository == 'Zemdomu/ZemDomu-extension'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        vscode-version: ["1.105.0", stable]
     env:
-      VSCODE_TEST_VERSION: stable
+      VSCODE_TEST_VERSION: ${{ matrix.vscode-version }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -22,7 +28,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: 22
           cache: npm
 
       - name: Install locked dependencies
@@ -31,5 +37,10 @@ jobs:
       - name: Test, package, and inspect VSIX
         run: npm run package
 
-      - name: Measure real VS Code Extension Host performance
+      - name: Measure real VS Code Extension Host performance on Linux
+        if: runner.os == 'Linux'
         run: xvfb-run -a npm run test:extension-host
+
+      - name: Measure real VS Code Extension Host performance on Windows
+        if: runner.os == 'Windows'
+        run: npm run test:extension-host
