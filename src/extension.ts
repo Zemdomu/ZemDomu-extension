@@ -1519,13 +1519,13 @@ export function activate(context: vscode.ExtensionContext) {
         currentGroup: index + 1,
         currentGroupFiles: group.entries.length,
       });
-      const groupCore = new ProjectLinter(
-        buildOptions(group.resource, group.rootDir)
-      );
+      const options = buildOptions(group.resource, group.rootDir);
+      const groupCore = new ProjectLinter(options);
       const entryPaths = group.entries.map((entry) => entry.fsPath);
       const groupMap = await lintProjectForPresentation(
         groupCore,
-        entryPaths
+        entryPaths,
+        { freshInstance: true, options }
       );
       const remapped = buildRemappedResults(await applyInlineControls(groupMap));
       for (const [filePath, results] of remapped) {

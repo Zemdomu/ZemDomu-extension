@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import type {
   LintResult,
   ProjectLinter,
+  ProjectLinterOptions,
   ZemDomuDiagnostic,
   ZemDomuDiagnosticSeverity,
   ZemDomuSourceLocation,
@@ -77,10 +78,25 @@ export function isCanonicalLintResult(
 }
 
 export async function lintProjectForPresentation(
-  linter: Pick<ProjectLinter, "lintPageDiagnostics">,
-  filePaths: string[]
+  linter: Pick<ProjectLinter, "lintPageDiagnostics"> & {
+    lintFileDiagnostics?: (filePaths: string[]) => Promise<ZemDomuDiagnostic[]>;
+  },
+  filePaths: string[],
+  context?: { freshInstance: true; options: ProjectLinterOptions }
 ): Promise<Map<string, LintResult[]>> {
-  const diagnostics = await linter.lintPageDiagnostics(filePaths);
+  let diagnostics: ZemDomuDiagnostic[];
+  if (
+    context?.freshInstance === true &&
+    context.options &&
+    !context.options.pages?.length &&
+    !context.options.routeAdapters?.length &&
+    !context.options.customRules?.length &&
+    typeof linter.lintFileDiagnostics === "function"
+  ) {
+    diagnostics = await linter.lintFileDiagnostics(filePaths);
+  } else {
+    diagnostics = await linter.lintPageDiagnostics(filePaths);
+  }
   const grouped = new Map<string, LintResult[]>(
     filePaths.map((filePath) => [filePath, []])
   );

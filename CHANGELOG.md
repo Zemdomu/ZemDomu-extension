@@ -5,17 +5,18 @@
 ### Bugfix
 
 - Bugfix: handle VS Code's documented promise-like workspace progress results and allow scanning to resume after a failed scan.
-- Bugfix: bundle Core 2.0.3 so directive-looking text in HTML raw-text elements and attribute values cannot suppress real findings.
+- Bugfix: bundle Core 2.1.0 so directive-looking text in HTML raw-text elements and attribute values cannot suppress real findings.
 - Bugfix: recognize directly referenced hidden labels without including hidden descendants in visible label names.
 - Bugfix: accept grandfathered language tags and reject repeated language extension singletons when checking document language attributes.
 
 ### Security
 
 - Security: provide verifiable Sigstore signatures for GitHub release downloads.
-- Security: bundle Core 2.0.3 to prevent crafted script URLs and component import paths from causing excessive processing during project analysis.
+- Security: bundle Core 2.1.0 to prevent crafted script URLs and component import paths from causing excessive processing during project analysis.
 
 ### Performance
 
+- Performance: reduce repeated analysis during editor scans that have no configured page composition.
 - Performance: defer loading Core’s TypeScript compiler until project configuration or component analysis requires it, reducing memory used by projects without those needs.
 - Performance: avoid reparsing files without inline control directives when filtering diagnostics, reducing repeated editor scan work.
 
