@@ -1,0 +1,10 @@
+{
+  "all": true,
+  "extension": [".js", ".ts"],
+  "include": ["**/out/**/*.js", "**/dist/extension.js", "**/src/**/*.ts"],
+  "exclude": ["**/node_modules/**", "**/tests/**", "**/scripts/**"],
+  "exclude-after-remap": true,
+  "reporter": ["text", "json", "json-summary", "lcov", "html"],
+  "report-dir": "coverage",
+  "temp-directory": "coverage/tmp"
+}

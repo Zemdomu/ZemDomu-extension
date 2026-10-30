@@ -5,6 +5,7 @@ node_modules/
 dist/
 out/
 .vscode-test/
+/coverage/
 *.log
 
 # VS Code Extension build artifacts

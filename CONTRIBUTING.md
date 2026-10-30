@@ -73,6 +73,34 @@ ZEMDOMU_FUZZ_PROPERTY=disable-next ZEMDOMU_FUZZ_SEED=12345 ZEMDOMU_FUZZ_PATH=0:0
 Property names are diagnostic-ranges, block-directives, disable-next, and
 literal-directives. Record a genuine counterexample as a focused regression test.
 
+### TypeScript coverage
+
+```sh
+npm run test:coverage
+```
+
+This first runs the normal minified production build and all tests, including
+the bundle size budget. It then rebuilds TypeScript with source maps and creates
+an unminified, mapped bundle for measurement. Both runs use the shared
+`test:functional` test order; only the production bundle size check is omitted
+from the measurement run.
+
+The report combines compiled modules used by unit tests with the bundle used by
+integration tests. Its branch and function totals differ from a bundle-only
+measurement; compare results using the same profile.
+
+Read `coverage/index.html`, `coverage/coverage-summary.json`, or `coverage/lcov.info`.
+Reports must contain every file in `src/`, with no generated JavaScript or
+dependency rows. The coverage guards reject missing or broken source maps,
+non-finite results, and empty or unexecuted entrypoint function/branch counters.
+Negative regression fixtures exercise those failures on each coverage run.
+
+The mapped report is generated before cleanup. Measurement bundles and source
+maps are removed even when coverage validation fails; coverage output is ignored
+by Git and VSIX packaging. Run `npm run package` afterwards to rebuild and verify
+the production VSIX. Coverage measures executed tests and does not establish
+accessibility conformance.
+
 See the [user guide](docs/USER_GUIDE.md) for settings, supported VS Code versions,
 privacy, and troubleshooting. Do not commit generated bundles, local workspace
 files, or private fixtures.
