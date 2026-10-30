@@ -3,7 +3,11 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+
+const requireTool = createRequire(new URL('../open-vsx-tools/package.json', import.meta.url));
+const { SaxesParser } = requireTool('saxes');
 
 export const repository = 'Zemdomu/ZemDomu-extension';
 export const workflowPath = '.github/workflows/publish-open-vsx.yml';
@@ -50,17 +54,38 @@ export function validateVsix(file, request, exec = execFileSync) {
   assert.equal(pkg.name, 'zemdomu', 'Unexpected extension name.');
   assert.equal(pkg.version, request.version, 'Packaged version differs from the release.');
   const manifest = exec('unzip', ['-p', file, 'extension.vsixmanifest'], options);
-  const identity = manifest.match(/<Identity\b([^>]+)>/);
-  assert.ok(identity, 'VSIX manifest is missing its identity.');
-  const attributes = [...identity[1].matchAll(/([A-Za-z]+)="([^"]*)"/g)].map(match => [match[1], match[2]]);
-  assert.equal(new Set(attributes.map(([key]) => key)).size, attributes.length, 'Duplicate manifest identity attributes.');
-  const manifestIdentity = Object.fromEntries(attributes);
-  assert.equal(manifestIdentity.Id, pkg.name, 'Manifest extension name differs from package metadata.');
-  assert.equal(manifestIdentity.Publisher, pkg.publisher, 'Manifest publisher differs from package metadata.');
-  assert.equal(manifestIdentity.Version, pkg.version, 'Manifest version differs from package metadata.');
-  const flags = [...manifest.matchAll(/<Property\s+Id="Microsoft\.VisualStudio\.Code\.PreRelease"\s+Value="(true|false)"\s*\/>/g)];
-  assert.ok(flags.length <= 1, 'Ambiguous pre-release marker.');
-  assert.equal(flags[0]?.[1] === 'true', request.prerelease, 'The packaged channel differs from GitHub.');
+  const identities = [], flags = [];
+  const attribute = (tag, name) => {
+    const values = Object.values(tag.attributes).filter(value => value.local === name);
+    assert.equal(values.length, 1, `Missing or duplicate ${name} attribute.`);
+    assert.ok(values[0].name === name && values[0].uri === '', `Namespaced ${name} attribute is not accepted.`);
+    return values[0].value;
+  };
+  const parser = new SaxesParser({ xmlns: true });
+  let rootSeen = false;
+  const namespace = 'http://schemas.microsoft.com/developer/vsx-schema/2011';
+  parser.on('error', error => { throw error; });
+  parser.on('doctype', () => { throw new Error('DTD declarations are not allowed in the release manifest.'); });
+  parser.on('opentag', tag => {
+    if (!rootSeen) {
+      assert.equal(tag.name, 'PackageManifest', 'Unexpected manifest root.');
+      assert.equal(tag.uri, namespace, 'Unexpected manifest namespace.');
+      rootSeen = true;
+    }
+    if (tag.local === 'Identity' || tag.local === 'Property') {
+      assert.equal(tag.name, tag.local, 'Prefixed metadata is not accepted by this distribution policy.');
+      assert.equal(tag.uri, namespace, 'Metadata namespace differs from the VSIX schema.');
+    }
+    if (tag.local === 'Identity') identities.push(tag);
+    if (tag.local === 'Property' && attribute(tag, 'Id') === 'Microsoft.VisualStudio.Code.PreRelease') flags.push(attribute(tag, 'Value'));
+  });
+  parser.write(manifest).close();
+  assert.equal(identities.length, 1, 'VSIX must have exactly one manifest identity.');
+  assert.equal(attribute(identities[0], 'Id'), pkg.name, 'Manifest extension name differs from package metadata.');
+  assert.equal(attribute(identities[0], 'Publisher'), pkg.publisher, 'Manifest publisher differs from package metadata.');
+  assert.equal(attribute(identities[0], 'Version'), pkg.version, 'Manifest version differs from package metadata.');
+  assert.ok(flags.length <= 1 && flags.every(value => value === 'true'), 'Ambiguous pre-release marker.');
+  assert.equal(flags.length === 1, request.prerelease, 'The packaged channel differs from GitHub.');
 }
 
 export function prepareOpenVsx({ env = process.env, exec = execFileSync } = {}) {

@@ -44,6 +44,8 @@ jobs:
         with:
           node-version: 24.22.1
           package-manager-cache: false
+      - name: Install locked verification tooling without install scripts
+        run: npm ci --ignore-scripts --prefix .github/open-vsx-tools
       - name: Test distribution boundaries offline
         run: node --test .github/tests/open-vsx.test.mjs
       - name: Download and inspect exact existing release bytes
@@ -97,11 +99,8 @@ jobs:
         run: node --input-type=module -e 'import fs from "node:fs"; import {sha256} from "./.github/scripts/prepare-open-vsx.mjs"; if(sha256(fs.readFileSync(process.env.VSIX)) !== process.env.EXPECTED_SHA256) process.exit(1);'
       - name: Publish identical bytes using scoped trusted publishing
         env:
-          RELEASE_PRERELEASE: ${{ inputs.prerelease }}
           VSIX: ${{ runner.temp }}/open-vsx-upload/zemdomu.vsix
         shell: bash
         run: |
           set -euo pipefail
-          flags=()
-          if [ "$RELEASE_PRERELEASE" = "true" ]; then flags+=(--pre-release); fi
-          .github/open-vsx-tools/node_modules/.bin/ovsx publish "$VSIX" --registryUrl https://open-vsx.org --trusted-publishing "${flags[@]}"
+          .github/open-vsx-tools/node_modules/.bin/ovsx publish "$VSIX" --registryUrl https://open-vsx.org --trusted-publishing

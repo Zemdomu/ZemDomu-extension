@@ -19,7 +19,7 @@ const files = ['[Content_Types].xml', 'extension.vsixmanifest', ...[
   'images/marketplace-cross-component.png', 'images/marketplace-diagnostic.png', 'images/marketplace-vue-remediation.png',
 ].map(name => `extension/${name}`)];
 const pkg = { name: 'zemdomu', publisher: 'ZachariasErydBerlin', version: '0.1.3' };
-const manifest = '<Identity Id="zemdomu" Publisher="ZachariasErydBerlin" Version="0.1.3" /><Property Id="Microsoft.VisualStudio.Code.PreRelease" Value="true" />';
+const manifest = '<PackageManifest xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011"><Metadata><Identity Id="zemdomu" Publisher="ZachariasErydBerlin" Version="0.1.3" /><Properties><Property Id="Microsoft.VisualStudio.Code.PreRelease" Value="true" /></Properties></Metadata></PackageManifest>';
 function archive({ entries = files, metadata = pkg, xml = manifest } = {}) {
   return (command, args) => {
     assert.equal(command, 'unzip');
@@ -67,6 +67,31 @@ test('archive inspection rejects extra files, duplicates, identity conflicts and
   assert.throws(() => validateVsix('package.vsix', { ...request, prerelease: false }, archive()));
 });
 
+test('XML parsing recognizes reordered, spaced, single-quoted and encoded flags and rejects conflicting metadata', () => {
+  for (const property of [
+    '<Property Value="true" Id="Microsoft.VisualStudio.Code.PreRelease" />',
+    "<Property Value = 'true' Id = 'Microsoft.VisualStudio.Code.PreRelease'></Property>",
+    '<Property Id="Microsoft.VisualStudio.Code.Pre&#82;elease" Value="&#116;rue" />',
+  ]) {
+    const xml = manifest.replace(/<Property\b[^>]+\/>/, property);
+    validateVsix('package.vsix', request, archive({ xml }));
+    assert.throws(() => validateVsix('package.vsix', { ...request, prerelease: false }, archive({ xml })));
+  }
+  const stable = manifest.replace(/<Property\b[^>]+\/>/, '');
+  validateVsix('package.vsix', { ...request, prerelease: false }, archive({ xml: stable }));
+  for (const xml of [
+    manifest.replace('</Properties>', '<Property Id="Microsoft.VisualStudio.Code.PreRelease" Value="false" /></Properties>'),
+    manifest.replace('</Metadata>', '<Identity Id="zemdomu" Publisher="other" Version="0.1.3" /></Metadata>'),
+    manifest.replace('Value="true"', 'Value="true" Value="false"'),
+    manifest.replace('<Property Id=', '<Property xmlns="urn:other" Id='),
+    manifest.replace('<Property Id=', '<alias:Property xmlns:alias="http://schemas.microsoft.com/developer/vsx-schema/2011" Id='),
+    manifest.replace('<Property Id=', '<Property xmlns:foreign="urn:other" foreign:Id='),
+    manifest.replace('Value="true"', 'xmlns:foreign="urn:other" foreign:Value="true"'),
+    manifest.replace('<Identity Id=', '<Identity xmlns:foreign="urn:other" foreign:Id='),
+    '<!DOCTYPE PackageManifest [<!ENTITY hidden "true">]>' + manifest,
+  ]) assert.throws(() => validateVsix('package.vsix', request, archive({ xml })));
+});
+
 test('download binds exact bytes, rechecks metadata, and never executes or publishes the extension', t => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'open-vsx-contract-'));
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
@@ -92,11 +117,12 @@ test('distribution workflow defaults to verification, uses locked tools, and gra
   const publish = workflow.split('\n  publish:\n')[1];
   assert.match(workflow, /dry_run:\n(?:[^\n]*\n)*?        default: true/);
   assert.doesNotMatch(workflow, /\n  (push|pull_request|workflow_run|schedule):|secrets\.|OVSX_PAT|skip-duplicate|continue-on-error/);
-  assert.doesNotMatch(verify, /id-token: write|npm ci|ovsx publish/);
+  assert.doesNotMatch(verify, /id-token: write|ovsx publish|npm run|run: npm ci\n/);
+  assert.match(verify, /npm ci --ignore-scripts --prefix \.github\/open-vsx-tools/);
   assert.match(publish, /!inputs.dry_run/); assert.match(publish, /environment: open-vsx/);
   assert.match(publish, /artifact-ids: \$\{\{ needs.verify.outputs.artifact_id \}\}/);
   assert.match(publish, /npm ci --ignore-scripts --prefix \.github\/open-vsx-tools/);
-  assert.match(publish, /--trusted-publishing/); assert.match(publish, /--pre-release/);
+  assert.match(publish, /--trusted-publishing/); assert.doesNotMatch(publish, /--pre-release/);
   assert.doesNotMatch(publish, /vsce package|npm version|npm run (bundle|compile|package)/);
   for (const line of workflow.matchAll(/uses: ([^\n]+)/g)) assert.match(line[1], /@[a-f0-9]{40}\b/);
 });

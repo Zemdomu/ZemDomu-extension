@@ -26,8 +26,11 @@ register a [trusted publisher](https://github.com/eclipse-openvsx/openvsx/wiki/T
 for `Zemdomu/ZemDomu-extension`, workflow `publish-open-vsx.yml`, environment
 `open-vsx`, extension `zemdomu`. A namespace contributor alone cannot register
 this policy. The first active version must exist before registration. Keep
-the environment and workflow names exact; use the environment to restrict
-publication to reviewed runs. The workflow uses a short-lived OIDC publishing
+the environment and workflow names exact. Configure the GitHub environment's
+deployment-branch policy to allow only `main`, with the intended review rules:
+Open VSX registrations themselves accept any ref running the registered
+workflow filename. An editable workflow `if` guard alone is not this external
+branch restriction. The workflow uses a short-lived OIDC publishing
 token and does not require an `OVSX_PAT` repository secret. A successful dry
 run does not establish that this external registration is complete.
 

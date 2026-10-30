@@ -35,7 +35,9 @@ jobs:
         run: npm ci
 
       - name: Test Open VSX distribution boundaries
-        run: node --test .github/tests/open-vsx.test.mjs
+        run: |
+          npm ci --ignore-scripts --prefix .github/open-vsx-tools
+          node --test .github/tests/open-vsx.test.mjs
 
       - name: Validate source-mapped TypeScript coverage
         run: npm run test:coverage
