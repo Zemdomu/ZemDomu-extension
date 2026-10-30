@@ -19,6 +19,13 @@ default setup. `.github/dependabot.yml` tracks npm and workflow dependencies.
 Keep workflow actions pinned to full commit SHAs and grant write permissions
 only to the jobs that need them.
 
+The manual public artifact builder records reviewed source/version/channel and
+attests the exact inspected VSIX. It never publishes to Marketplace, creates
+release tags, or accepts publishing credentials. Public build artifacts contain
+only the VSIX, its public candidate metadata, the original provenance bundle, and
+its unchanged DSSE envelope. They do not upgrade historical download signatures
+to build provenance or authorize replacement of an existing version.
+
 Never store credentials, tokens, private keys, customer data, private URLs, or
 real environment values in this repository. From the canonical ZemDomu
 monorepo root, run:
