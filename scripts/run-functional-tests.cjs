@@ -30,6 +30,7 @@ const tests = [
   ["tests/npm-link.test.js"],
   ["tests/package-size.test.js","--bundle"],
   ["tests/extension-host-exit.test.js"],
+  ["tests/extension-host/memory-budget.test.js"],
 ];
 const coverage = process.argv.slice(2);
 assert.ok(coverage.length === 0 || (coverage.length === 1 && coverage[0] === '--coverage'), 'Expected only optional --coverage');

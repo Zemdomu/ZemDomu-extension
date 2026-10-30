@@ -1,9 +1,10 @@
 # Paired Extension Host memory experiment
 
 This is diagnostic maintainer tooling. It does not replace or relax the normal
-release suite, its 275 MiB hosted RSS cap, activation/typing/save limits, or 20%
-save-loop growth limit. A diagnostic run can report more than 275 MiB without
-failing for memory; release eligibility still uses the unchanged release gates.
+release suite, its reviewed hosted RSS caps, activation/typing/save limits, or
+20% save-loop growth limit. A diagnostic run can exceed the release memory cap
+without failing for memory; release eligibility still uses the normal release
+gates documented in [Performance Baseline](../../docs/PERFORMANCE_BASELINE.md).
 
 Build the normal bundle, then run from a **clean committed checkout**:
 

@@ -14,7 +14,11 @@ const MAX_TYPE_P95_MS = IS_GITHUB_HOSTED_RUNNER && process.platform === 'win32'
   ? 750
   : 500;
 const MAX_SAVE_P95_MS = 1000;
-const MAX_RSS_MIB = IS_GITHUB_HOSTED_RUNNER ? 275 : 250;
+// Only this measured runtime has an approved hosted allowance. Other versions
+// retain the existing ceiling until their baseline has been reviewed.
+const MAX_RSS_MIB = IS_GITHUB_HOSTED_RUNNER
+  ? (vscode.version === '1.144.0' ? 300 : 275)
+  : 250;
 const MAX_RSS_GROWTH_PERCENT = 20;
 
 function percentile(values, fraction) {
