@@ -80,10 +80,18 @@ files, or private fixtures.
 ## Open a pull request
 
 Explain the user-visible problem, the resulting behavior, and how you checked
-it. Add a regression test for a behavior fix and update user-facing guidance
+it. New functionality must include automated tests for its expected behavior
+and important failure cases. Add a regression test for a behavior fix and update
+user-facing guidance
 when settings or diagnostics change. For documentation-only work, check links
 and examples and say that code tests were not run. Record customer-relevant
 changes under the appropriate category in the unreleased changelog.
+
+Follow the surrounding TypeScript naming, formatting, and module conventions.
+Keep type checking enabled with the repository's checked-in `tsconfig.json`.
+Fix compiler errors and confirmed security-analysis findings before merging;
+document the evidence for any finding dismissed as a false positive. Do not
+disable checks or weaken configuration to make a pull request pass.
 
 Accessibility rule changes should explain their detection limits and the
 relevant standard or authoring policy. Source analysis cannot establish WCAG
