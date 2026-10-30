@@ -11,9 +11,7 @@
       ],
       "skipLibCheck": true,
       "strict": true,
-      "noImplicitAny": false,
       "esModuleInterop": true
     },
     "include": ["src"]
   }
-  

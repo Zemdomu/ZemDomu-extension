@@ -2024,7 +2024,7 @@ export function activate(context: vscode.ExtensionContext) {
           }
         }
       );
-      const trackedCommand = command.finally(() => {
+      const trackedCommand = Promise.resolve(command).finally(() => {
         if (activeWorkspaceCommand === trackedCommand) {
           activeWorkspaceCommand = null;
         }
