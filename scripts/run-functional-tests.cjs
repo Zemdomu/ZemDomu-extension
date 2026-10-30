@@ -6,8 +6,11 @@ const { spawnSync } = require('child_process');
 const tests = [
   ["tests/run-modes.test.js"],
   ["tests/issue-tracker.test.js"],
+  ["tests/performance-diagnostics.test.js"],
+  ["tests/workspace-lifecycle.test.js"],
   ["tests/race-stress.test.js"],
   ["tests/inline-disable.test.js"],
+  ["tests/inline-control-boundaries.test.js"],
   ["tests/multi-root.test.js"],
   ["tests/linter-labels.test.js"],
   ["tests/all-rules.test.js"],

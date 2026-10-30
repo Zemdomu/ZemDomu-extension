@@ -88,6 +88,30 @@ function diagnostic(message) {
     assert.strictEqual(statusBar.text, 'ZemDomu: scan failed');
     assert.ok(statusBar.accessibilityInformation.label.includes('scan failed'));
 
+    const failedTooltip = statusBar.tooltip;
+    tracker.updateScanPhase('An unrelated late progress update');
+    assert.strictEqual(statusBar.tooltip, failedTooltip, 'Late progress must not replace a terminal failure');
+    tracker.updateFile(first, [diagnostic('Missing alt')]);
+    tracker.supersedeScan();
+    assert.strictEqual(statusBar.text, 'ZemDomu: 1 finding');
+    assert.ok(statusBar.accessibilityInformation.label.includes('1 finding currently reported'));
+    tracker.updateFile(second, [diagnostic('Missing title')]);
+    tracker.supersedeScan();
+    assert.strictEqual(statusBar.text, 'ZemDomu: 2 findings');
+    assert.ok(statusBar.accessibilityInformation.label.includes('2 findings currently reported'));
+    tracker.clear();
+    assert.strictEqual(statusBar.text, 'ZemDomu: all clear');
+    assert.strictEqual(tracker.getTotalCount(), 0);
+
+    for (let count = 1; count <= 7; count++) {
+      tracker.updateFile(vscode.Uri.file(path.join('workspace', `Page${count}.html`)),
+        Array.from({ length: count }, () => diagnostic('Missing alt')));
+    }
+    assert.strictEqual(statusBar.text, 'ZemDomu: 28 findings');
+    assert.deepStrictEqual(statusBar.tooltip.split('\n').slice(1), [
+      'Page7.html: 7', 'Page6.html: 6', 'Page5.html: 5', 'Page4.html: 4', 'Page3.html: 3',
+    ], 'The tooltip must summarize the five files with the most findings');
+
     tracker.dispose();
     assert.ok(statusBar.disposed, 'disposing the tracker must dispose the status bar');
     console.log('Issue tracker status-bar tests passed');
