@@ -7,6 +7,7 @@
 ### Security
 
 - Security: provide verifiable Sigstore signatures for GitHub release downloads.
+- Security: bundle Core 2.0.1 to prevent crafted script URLs and component import paths from causing excessive processing during project analysis.
 
 ### Docs
 
