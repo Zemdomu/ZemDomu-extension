@@ -12,7 +12,7 @@
   },
   "homepage": "https://zemdomu.dev/",
   "funding": "https://buymeacoffee.com/zemdomu",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "author": "Zacharias Eryd Berlin",
   "license": "MIT",
   "engines": {
@@ -459,6 +459,6 @@
     "theme": "dark"
   },
   "dependencies": {
-    "zemdomu": "^2.0.1"
+    "zemdomu": "^2.1.0"
   }
 }

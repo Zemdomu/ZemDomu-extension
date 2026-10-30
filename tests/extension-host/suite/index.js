@@ -29,6 +29,19 @@ function appendPerformanceRecord(record) {
   fs.appendFileSync(resultsPath, `${JSON.stringify(record)}\n`, 'utf8');
 }
 
+function captureMemory(label, milestones) {
+  const memory = process.memoryUsage();
+  milestones.push({
+    label,
+    timestamp: new Date().toISOString(),
+    ...Object.fromEntries(
+      ['rss', 'heapTotal', 'heapUsed', 'external', 'arrayBuffers'].map(key =>
+        [`${key}MiB`, Number((memory[key] / 1024 / 1024).toFixed(2))])
+    ),
+  });
+  return memory;
+}
+
 function diagnosticCode(diagnostic) {
   if (diagnostic.code && typeof diagnostic.code === 'object') {
     return diagnostic.code.value;
@@ -76,7 +89,7 @@ function waitForNextDiagnosticState(uri, expectMissingAlt, action) {
   });
 }
 
-async function measureInteractivePerformance(document, configuration) {
+async function measureInteractivePerformance(document, configuration, memoryMilestones) {
   const validText = '<!doctype html><html lang="en"><head><title>Fixture</title></head><body><main><h1>Fixture</h1><img src="portrait.png" alt="Portrait"></main></body></html>';
   const invalidText = '<!doctype html><html lang="en"><head><title>Fixture</title></head><body><main><h1>Fixture</h1><img src="portrait.png"></main></body></html>';
   const typeDurationsMs = [];
@@ -84,6 +97,7 @@ async function measureInteractivePerformance(document, configuration) {
 
   await configuration.update('run', 'onType', vscode.ConfigurationTarget.Workspace);
   await new Promise(resolve => setTimeout(resolve, 100));
+  captureMemory('before-typing', memoryMilestones);
   for (let run = 0; run < TYPE_RUNS; run += 1) {
     const expectMissingAlt = run % 2 !== 0;
     const startedAt = performance.now();
@@ -94,10 +108,11 @@ async function measureInteractivePerformance(document, configuration) {
     );
     typeDurationsMs.push(completedAt - startedAt);
   }
+  captureMemory('after-typing', memoryMilestones);
 
   await configuration.update('run', 'onSave', vscode.ConfigurationTarget.Workspace);
   await new Promise(resolve => setTimeout(resolve, 100));
-  const baselineRssBytes = process.memoryUsage().rss;
+  const baselineRssBytes = captureMemory('before-save-scans', memoryMilestones).rss;
   let peakRssBytes = baselineRssBytes;
   const sampler = setInterval(() => {
     peakRssBytes = Math.max(peakRssBytes, process.memoryUsage().rss);
@@ -118,8 +133,9 @@ async function measureInteractivePerformance(document, configuration) {
   } finally {
     clearInterval(sampler);
   }
+  captureMemory('after-save-scans', memoryMilestones);
   await configuration.update('run', 'manual', vscode.ConfigurationTarget.Workspace);
-  const finalRssBytes = process.memoryUsage().rss;
+  const finalRssBytes = captureMemory('after-restoring-manual', memoryMilestones).rss;
   const peakRssMiB = Number((peakRssBytes / 1024 / 1024).toFixed(2));
   const rssGrowthPercent = Number((
     Math.max(0, finalRssBytes - baselineRssBytes) / baselineRssBytes * 100
@@ -127,30 +143,11 @@ async function measureInteractivePerformance(document, configuration) {
   const typeP95Ms = Number(percentile(typeDurationsMs, 0.95).toFixed(2));
   const saveP95Ms = Number(percentile(saveDurationsMs, 0.95).toFixed(2));
 
-  assert.ok(
-    typeP95Ms < MAX_TYPE_P95_MS,
-    `on-type p95 ${typeP95Ms}ms must stay below ${MAX_TYPE_P95_MS}ms after debounce`
-  );
-  assert.ok(
-    saveP95Ms < MAX_SAVE_P95_MS,
-    `on-save p95 ${saveP95Ms}ms must stay below ${MAX_SAVE_P95_MS}ms`
-  );
-  assert.ok(
-    peakRssMiB < MAX_RSS_MIB,
-    `Extension Host peak RSS ${peakRssMiB} MiB must stay below ${MAX_RSS_MIB} MiB`
-  );
-  assert.ok(
-    rssGrowthPercent < MAX_RSS_GROWTH_PERCENT,
-    `RSS growth ${rssGrowthPercent}% must stay below ${MAX_RSS_GROWTH_PERCENT}% after ${SAVE_RUNS} scans`
-  );
-
   const workspaceFiles = await vscode.workspace.findFiles(
     '**/*.{html,jsx,tsx,vue}',
     '{**/node_modules/**,**/dist/**,**/out/**,**/.git/**}'
   );
-  assert.strictEqual(workspaceFiles.length, 100, 'Performance fixture must contain 100 files');
-
-  return {
+  const report = {
     type: 'interactive',
     environment: {
       platform: `${os.type()} ${os.release()} ${os.arch()}`,
@@ -158,6 +155,9 @@ async function measureInteractivePerformance(document, configuration) {
       logicalCpuCount: os.cpus().length,
       totalMemoryMiB: Number((os.totalmem() / 1024 / 1024).toFixed(0)),
       node: process.version,
+      electron: process.versions.electron,
+      chrome: process.versions.chrome,
+      architecture: process.arch,
       vscode: vscode.version,
       extensionVersion: manifest.version,
     },
@@ -185,23 +185,51 @@ async function measureInteractivePerformance(document, configuration) {
       growthPercent: rssGrowthPercent,
       peakBudgetMiB: MAX_RSS_MIB,
       growthBudgetPercent: MAX_RSS_GROWTH_PERCENT,
+      milestones: memoryMilestones,
     },
   };
+  // The host runner removes its temporary results on failure. Log and persist
+  // measurements before enforcing budgets so a failing gate remains diagnosable.
+  appendPerformanceRecord(report);
+  console.log(`[ZemDomu host performance] ${JSON.stringify(report)}`);
+
+  assert.ok(
+    typeP95Ms < MAX_TYPE_P95_MS,
+    `on-type p95 ${typeP95Ms}ms must stay below ${MAX_TYPE_P95_MS}ms after debounce`
+  );
+  assert.ok(
+    saveP95Ms < MAX_SAVE_P95_MS,
+    `on-save p95 ${saveP95Ms}ms must stay below ${MAX_SAVE_P95_MS}ms`
+  );
+  assert.ok(
+    peakRssMiB < MAX_RSS_MIB,
+    `Extension Host peak RSS ${peakRssMiB} MiB must stay below ${MAX_RSS_MIB} MiB`
+  );
+  assert.ok(
+    rssGrowthPercent < MAX_RSS_GROWTH_PERCENT,
+    `RSS growth ${rssGrowthPercent}% must stay below ${MAX_RSS_GROWTH_PERCENT}% after ${SAVE_RUNS} scans`
+  );
+  assert.strictEqual(workspaceFiles.length, 100, 'Performance fixture must contain 100 files');
+  return report;
 }
 
 async function run() {
+  const memoryMilestones = [];
+  captureMemory('suite-entry-before-activation', memoryMilestones);
   const extension = vscode.extensions.getExtension(EXTENSION_ID);
   assert.ok(extension, `${EXTENSION_ID} must be installed in the Extension Host`);
   assert.ok(!extension.isActive, 'Cold activation must begin before ZemDomu is active');
   const activationStartedAt = performance.now();
   await extension.activate();
   const activationDurationMs = Number((performance.now() - activationStartedAt).toFixed(2));
+  captureMemory('after-activation', memoryMilestones);
   assert.ok(extension.isActive, 'ZemDomu must activate in the real Extension Host');
   appendPerformanceRecord({
     type: 'activation',
     durationMs: activationDurationMs,
     measured: process.env.ZEMDOMU_MEASURE_ACTIVATION === '1',
     vscode: vscode.version,
+    memoryMilestones,
   });
   if (process.env.ZEMDOMU_PERF_MODE === 'activation') return;
 
@@ -223,6 +251,7 @@ async function run() {
   try {
     const result = await vscode.commands.executeCommand('zemdomu.lintWorkspace');
     assert.strictEqual(result, 'Scan complete');
+    captureMemory('after-initial-workspace-scan', memoryMilestones);
 
     const diagnostics = await waitForDiagnostics(
       document.uri,
@@ -238,6 +267,7 @@ async function run() {
       vscode.ConfigurationTarget.Workspace
     );
     await vscode.commands.executeCommand('zemdomu.lintWorkspace');
+    captureMemory('after-error-severity-scan', memoryMilestones);
     const errorDiagnostics = await waitForDiagnostics(
       document.uri,
       items => items.some(
@@ -262,6 +292,7 @@ async function run() {
       vscode.ConfigurationTarget.Workspace
     );
     await vscode.commands.executeCommand('zemdomu.lintWorkspace');
+    captureMemory('after-rule-disabled-scan', memoryMilestones);
     await waitForDiagnostics(
       document.uri,
       items => !items.some(item => diagnosticCode(item) === 'ZMD004'),
@@ -274,6 +305,7 @@ async function run() {
       vscode.ConfigurationTarget.Workspace
     );
     await vscode.commands.executeCommand('zemdomu.lintWorkspace');
+    captureMemory('after-rule-restored-scan', memoryMilestones);
     const restoredDiagnostics = await waitForDiagnostics(
       document.uri,
       items => items.some(item => diagnosticCode(item) === 'ZMD004'),
@@ -296,6 +328,7 @@ async function run() {
     assert.ok(await vscode.workspace.applyEdit(altAction.edit));
     await document.save();
     await vscode.commands.executeCommand('zemdomu.lintWorkspace');
+    captureMemory('after-quick-fix-rescan', memoryMilestones);
 
     await waitForDiagnostics(
       document.uri,
@@ -310,9 +343,9 @@ async function run() {
     await vscode.workspace.applyEdit(restore);
     await document.save();
   }
+  captureMemory('after-functional-cleanup', memoryMilestones);
 
-  const interactive = await measureInteractivePerformance(document, configuration);
-  appendPerformanceRecord(interactive);
+  await measureInteractivePerformance(document, configuration, memoryMilestones);
 }
 
 module.exports = { run };

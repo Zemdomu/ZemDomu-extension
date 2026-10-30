@@ -159,6 +159,10 @@ export function applyInlineDisableDirectives(
   content: string,
   results: LintResult[]
 ): LintResult[] {
+  // Recognized controls always contain this case-insensitive marker. Leave
+  // ambiguous text on the existing parser path, including quoted literals.
+  if (!/zemdomu-(?:disable|enable)/i.test(content)) return results;
+
   const disabledNext: OffsetRange[] = [];
   const blockControls: BlockControl[] = [];
   for (const comment of sourceComments(content)) {
