@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Bugfix
+
+- Bugfix: handle VS Code's documented promise-like workspace progress results and allow scanning to resume after a failed scan.
+
 ### Security
 
 - Security: provide verifiable Sigstore signatures for GitHub release downloads.

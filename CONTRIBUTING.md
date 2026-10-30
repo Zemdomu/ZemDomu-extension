@@ -96,3 +96,17 @@ disable checks or weaken configuration to make a pull request pass.
 Accessibility rule changes should explain their detection limits and the
 relevant standard or authoring policy. Source analysis cannot establish WCAG
 conformance; avoid claims that a passing scan proves an accessible result.
+
+## Release security checks
+
+Before publishing a production release, run `npm ci`, `npm test`,
+`npm run audit:production`, and `npm run audit:all` on the release candidate.
+The full test suite includes the generated-input property tests. Require a
+successful CodeQL push run on public `main` for the exact source commit being
+released, and review its findings. Fix confirmed exploitable vulnerabilities of
+medium or higher severity before publishing; record evidence for false-positive
+dismissals. Include the source commit and test, fuzz, audit, and CodeQL results
+in the release pull request. Repeat these checks if the source changes.
+
+Also run the VSIX packaging, clean-profile installation, and real Extension Host
+checks required by the release workflow before publishing the inspected VSIX.

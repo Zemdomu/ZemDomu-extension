@@ -279,6 +279,38 @@ async function testWorkspaceFailureReporting() {
   }
 }
 
+async function testWorkspaceThenableContract() {
+  const harness = await createHarness('manual');
+  const originalWithProgress = vscode.window.withProgress;
+  vscode.window.withProgress = (options, task) => {
+    const result = originalWithProgress.call(vscode.window, options, task);
+    return { then: result.then.bind(result) };
+  };
+  try {
+    assert.strictEqual(
+      await vscode.commands.__execute('zemdomu.lintWorkspace'),
+      'Scan complete',
+      'workspace scans must support the documented Thenable API without finally'
+    );
+    assert.ok(hasRule(harness.collection, harness.doc, 'requireAltText', 'ZMD004'));
+
+    vscode.workspace.__setFindFilesError(new Error('Thenable scan failure'));
+    await assert.rejects(
+      vscode.commands.__execute('zemdomu.lintWorkspace'),
+      /Thenable scan failure/
+    );
+    vscode.workspace.__setFindFilesError(null);
+    assert.strictEqual(
+      await vscode.commands.__execute('zemdomu.lintWorkspace'),
+      'Scan complete',
+      'a rejected Thenable must release the active command so scanning can resume'
+    );
+  } finally {
+    vscode.window.withProgress = originalWithProgress;
+    await destroyHarness(harness);
+  }
+}
+
 async function testWorkspaceProgressContract() {
   const harness = await createHarness('manual');
   try {
@@ -415,6 +447,7 @@ async function testSupersededWorkspaceState() {
     await testConcurrentWorkspaceCommandsCoalesce();
     await testSupersededWorkspaceState();
     await testWorkspaceFailureReporting();
+    await testWorkspaceThenableContract();
     console.log('Run mode contract tests passed');
   } catch (error) {
     console.error('Run mode contract tests failed');
