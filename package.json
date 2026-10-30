@@ -425,7 +425,8 @@
     "publish-all": "npm run release",
     "test:fuzz": "npm run compile && node tests/fuzz-properties.test.js",
     "test:functional": "node scripts/run-functional-tests.cjs",
-    "test:coverage": "node scripts/test-coverage.cjs"
+    "test:coverage": "node scripts/test-coverage.cjs",
+    "test:extension-host-baseline": "node tests/extension-host/baseline-runner.js"
   },
   "devDependencies": {
     "@babel/parser": "^7.29.7",
