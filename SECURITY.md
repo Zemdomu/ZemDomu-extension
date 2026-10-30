@@ -28,3 +28,23 @@ False positives, missed accessibility findings, documentation errors, and
 feature requests belong in the repository's issue forms unless they expose a
 security vulnerability. A clean ZemDomu scan does not establish that an
 application is secure or accessible.
+
+## Verify release downloads
+
+GitHub release downloads include a matching `.sigstore.json` verification bundle
+when signed. Download both the artifact and its bundle from the same release,
+then verify with [Cosign](https://docs.sigstore.dev/cosign/verifying/verify/):
+
+```bash
+cosign verify-blob \
+  --bundle ARTIFACT.sigstore.json \
+  --certificate-identity https://github.com/REPOSITORY/.github/workflows/sign-release-artifacts.yml@refs/heads/main \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ARTIFACT
+```
+
+Replace `ARTIFACT` with the downloaded filename and `REPOSITORY` with
+`Zemdomu/ZemDomu-extension`. Verification checks the file bytes and the public signing
+workflow's identity. Signatures added to earlier releases record a later signing
+operation; they do not establish how the original artifact was built. npm
+provenance, when available, is separate build evidence.
