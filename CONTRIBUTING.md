@@ -45,6 +45,34 @@ npm run compile
 npm run bundle
 ```
 
+### Property tests
+
+The normal test suite also runs four fast-check properties against the production
+diagnostic adapter and inline-disable implementation. They cover primary and
+related diagnostic positions, rule-qualified disable/enable boundaries,
+disable-next behavior across LF and CRLF documents, and directive-looking
+strings that must not suppress findings. The VS Code constructor stub supplies
+the API boundary; the production functions themselves are not mocked.
+
+Run the properties separately, or increase their generated cases:
+
+```sh
+npm run test:fuzz
+ZEMDOMU_FUZZ_RUNS=1000 ZEMDOMU_FUZZ_SEED=12345 npm run test:fuzz
+```
+
+Each property defaults to 250 cases with the fixed seed 1592594996. Run counts
+must be integers from 1 through 10000; seeds must be signed 32-bit integers.
+To replay a shrunk counterexample, select the property printed before its
+failure and copy fast-check's seed and path:
+
+```sh
+ZEMDOMU_FUZZ_PROPERTY=disable-next ZEMDOMU_FUZZ_SEED=12345 ZEMDOMU_FUZZ_PATH=0:0 npm run test:fuzz
+```
+
+Property names are diagnostic-ranges, block-directives, disable-next, and
+literal-directives. Record a genuine counterexample as a focused regression test.
+
 See the [user guide](docs/USER_GUIDE.md) for settings, supported VS Code versions,
 privacy, and troubleshooting. Do not commit generated bundles, local workspace
 files, or private fixtures.
