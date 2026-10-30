@@ -43,6 +43,120 @@ function verbose(log) {
   return log.lines.filter(line => line.startsWith('[verbose] ')).map(line => JSON.parse(line.slice(10)));
 }
 
+async function verifyEmptyDiagnosticReadContracts() {
+  const promises = require('fs/promises');
+  const { ProjectLinter } = require('zemdomu');
+  const { canonicalDiagnosticToVscode } = require('../out/diagnostic-adapter.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'zemdomu-empty-read-contract-'));
+  const badFile = path.join(root, 'index.html');
+  const validHtml = '<!doctype html><html lang="en"><head><title>Fixture</title></head><body><main><h1>Fixture</h1><img src="portrait.png" alt="Portrait"></main></body></html>';
+  const badHtml = validHtml.replace(' alt="Portrait"', '');
+  const files = [badFile];
+  fs.writeFileSync(badFile, badHtml);
+  for (let index = 1; index < 100; index++) {
+    const format = ['html', 'jsx', 'tsx', 'vue'][index % 4];
+    const filename = path.join(root, `Page${index}.${format}`);
+    const markup = `<main><h1>Page ${index}</h1><img src="portrait.png" alt="Portrait"/></main>`;
+    const source = format === 'html' ? validHtml
+      : format === 'vue' ? `<template>${markup}</template>`
+      : `export default function Page${index}(){ return ${markup}; }`;
+    fs.writeFileSync(filename, source);
+    files.push(filename);
+  }
+  const rules = Object.fromEntries(Object.keys(require('../package.json').contributes.configuration.properties)
+    .filter(name => name.startsWith('zemdomu.rules.')).map(name => [name.slice('zemdomu.rules.'.length), 'warning']));
+  const expectedForFiles = async () => new ProjectLinter({
+    rootDir: root, rules, crossComponentAnalysis: true, crossComponentDepth: 50,
+  }).lintFileDiagnostics(files);
+  const originalRead = promises.readFile;
+  const context = { extensionPath: path.resolve(__dirname, '..'), subscriptions: [] };
+  let reads = [];
+  let readErrors = 0;
+  let failingPaths = new Set();
+  let errorCode = 'EACCES';
+  const records = [];
+  try {
+    // Only intercept the Extension's additional filtering read. Actual Core
+    // analysis reads the real fixtures and computes every diagnostic normally.
+    promises.readFile = async function (filename, ...args) {
+      if (new Error().stack.includes('sourceForFile')) {
+        reads.push(filename);
+        if (failingPaths.has(filename)) {
+          readErrors += 1;
+          const error = new Error('Filtering source is unavailable');
+          error.code = errorCode;
+          throw error;
+        }
+      }
+      return originalRead.call(this, filename, ...args);
+    };
+    vscode.__resetAll();
+    vscode.workspace.__setConfiguration('run', 'manual');
+    vscode.workspace.__setWorkspaceFolders([{ uri: vscode.Uri.file(root) }]);
+    vscode.workspace.__setFindFiles(GLOB, files);
+    const entry = require.resolve('../out/extension.js');
+    delete require.cache[entry];
+    require(entry).activate(context);
+    const collection = vscode.languages.__getCollection('zemdomu');
+    const serialized = values => values.map(value => JSON.stringify(value)).sort();
+    const assertDisplayed = expected => {
+      for (const filename of files) {
+        const values = expected.filter(item => item.source.file === filename)
+          .map(item => canonicalDiagnosticToVscode(item,
+            vscode.Uri.parse(`https://zemdomu.dev/docs/${encodeURIComponent(item.rule)}`)));
+        assert.deepStrictEqual(serialized(collection.get(vscode.Uri.file(filename)) ?? []), serialized(values),
+          'All displayed diagnostic fields must match actual Core output');
+        assert.ok(collection.__entries().has(filename), 'Every empty file key must remain published');
+      }
+    };
+    const scan = async label => {
+      reads = []; readErrors = 0;
+      assert.strictEqual(await vscode.commands.__execute('zemdomu.lintWorkspace'), 'Scan complete');
+      assert.deepStrictEqual(vscode.window.__getErrorMessages(), [],
+        'Filtering read errors are not scan-failure barriers');
+      records.push({ label, reads: reads.length, readErrors });
+    };
+
+    // Empty filtering reads were historically best-effort, not an I/O barrier.
+    failingPaths = new Set(files.slice(1));
+    const initialExpected = await expectedForFiles();
+    assert.strictEqual(initialExpected.length, 1);
+    await scan('mixed-100-files');
+    assertDisplayed(initialExpected);
+
+    fs.writeFileSync(badFile, validHtml);
+    failingPaths = new Set(files);
+    await scan('all-empty-clears-stale');
+    assertDisplayed([]);
+    assert.deepStrictEqual(collection.get(vscode.Uri.file(badFile)), [],
+      'An empty result must clear its previous diagnostic even when filtering source is unavailable');
+
+    const directiveHtml = badHtml.replace('<img', '<!-- ZEMDOMU-DISABLE-NEXT requireAltText --><img');
+    fs.writeFileSync(badFile, directiveHtml);
+    const nonemptyExpected = await expectedForFiles();
+    assert.strictEqual(nonemptyExpected.length, 1);
+    failingPaths = new Set([badFile]);
+    for (const failure of ['EACCES', 'ENOENT']) {
+      errorCode = failure;
+      await scan(`nonempty-read-${failure}`);
+      assertDisplayed(nonemptyExpected);
+      assert.strictEqual(readErrors, 1, 'Nonempty source-read failures must retain the existing fallback');
+    }
+    failingPaths.clear();
+    await scan('nonempty-inline-control');
+    assertDisplayed([]);
+    console.log('[Empty diagnostic read checks]', JSON.stringify(records));
+    assert.strictEqual(records[0].reads, 1, 'Only the one nonempty file needs a filtering source read');
+    assert.strictEqual(records[1].reads, 0, 'Empty findings need no source reads or I/O barrier');
+    assert.deepStrictEqual(records.slice(2).map(record => record.reads), [1, 1, 1],
+      'All nonempty missing/read failures and normal inline filtering must still read source');
+  } finally {
+    promises.readFile = originalRead;
+    for (const disposable of [...context.subscriptions].reverse()) disposable?.dispose?.();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   await withWorkspace('onSave', async ({ doc, filename, collection, log }) => {
     await vscode.workspace.__fireDidSaveTextDocument(doc);
@@ -242,6 +356,7 @@ async function main() {
     assert.strictEqual(perf.lines.length, before, 'Disabling dev mode must stop performance summaries');
   }, { devMode: true });
 
+  await verifyEmptyDiagnosticReadContracts();
   console.log('Workspace settings, empty scan, recovery, debounce and disposal contracts passed');
 }
 

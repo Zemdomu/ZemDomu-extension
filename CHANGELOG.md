@@ -16,6 +16,7 @@
 
 ### Performance
 
+- Performance: skip extra source-file reads when a file has no diagnostics to filter, reducing work during repeated editor scans.
 - Performance: reduce repeated analysis during editor scans that have no configured page composition.
 - Performance: defer loading Core’s TypeScript compiler until project configuration or component analysis requires it, reducing memory used by projects without those needs.
 - Performance: avoid reparsing files without inline control directives when filtering diagnostics, reducing repeated editor scan work.

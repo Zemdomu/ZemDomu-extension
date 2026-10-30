@@ -1450,6 +1450,11 @@ export function activate(context: vscode.ExtensionContext) {
     const filtered = new Map<string, LintResult[]>();
     await Promise.all(
       Array.from(map.entries()).map(async ([filePath, results]) => {
+        if (results.length === 0) {
+          // Keep the file represented so publication can clear stale findings.
+          filtered.set(filePath, results);
+          return;
+        }
         const source = await sourceForFile(filePath, contentOverrides);
         if (source === null) {
           filtered.set(filePath, results);
