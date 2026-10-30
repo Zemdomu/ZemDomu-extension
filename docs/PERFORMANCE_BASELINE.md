@@ -34,11 +34,44 @@ Host process.
 The GitHub Actions Extension Host matrix runs this gate on Ubuntu and Windows
 against both VS Code 1.105.0 and the current stable version. Shared hosted
 runners use activation regression ceilings of 1.2 seconds on Linux and 1.8
-seconds on Windows, a 750-ms on-type ceiling on Windows, and a 275-MiB RSS
-ceiling because their CPU performance and base Extension Host memory differ
-from the reference machine. Linux on-type plus all on-save and growth budgets
-are unchanged. Any exceeded ceiling fails that matrix cell; the stricter
+seconds on Windows and a 750-ms on-type ceiling on Windows because hosted CPU
+performance differs from the reference machine. Hosted save-window RSS must
+stay below 275 MiB, with a reviewed 300-MiB allowance only for actual VS Code
+1.144.0. The minimum version and unreviewed runtime versions retain 275 MiB;
+the moving `stable` label alone cannot select the allowance. Linux on-type
+plus all on-save and growth budgets are unchanged. Any exceeded ceiling fails
+that matrix cell; the stricter
 500-ms and 250-MiB release budgets remain enforced everywhere else.
+
+## 2026-10-30 hosted memory review
+
+The owner approved the version-specific allowance after the
+[paired baseline experiment](https://github.com/Zemdomu/ZemDomu-extension/actions/runs/41072128378)
+completed all 40 predetermined launches (five alternating inert-control/product
+pairs per Ubuntu/Windows and VS Code 1.105.0/1.144.0 cell). Original fixtures and
+the normal release workload were preserved. Save-window measurements in MiB:
+
+| OS | VS Code | Control median | Product median | Product maximum |
+| --- | --- | ---: | ---: | ---: |
+| Ubuntu | 1.105.0 | 184.18 | 232.55 | 234.97 |
+| Ubuntu | 1.144.0 | 234.94 | 275.40 | 276.61 |
+| Windows | 1.105.0 | 176.01 | 225.99 | 231.01 |
+| Windows | 1.144.0 | 231.02 | 274.61 | 277.35 |
+
+The stable allowance leaves 22.65 MiB above this batch's largest save-window
+observation. It is an explicit engineering budget, not an automatic adjustment
+or a statistical tail bound. Future runtime versions require their own review.
+Latency, 20% save-loop growth, activation and functional assertions stay intact.
+Every release still requires the normal exact-source four-cell host workflow.
+
+RSS measures the whole test Extension Host process. Matched differences include
+product work, built-ins and allocation timing; they are not exact product memory
+ownership. Cross-version jobs also used different hosted CPUs, and five pairs
+per cell do not establish production tail behavior or prove no regression from
+an older product release. Full measured lifecycle peaks were recorded separately
+(maximum 290.76 MiB); the save-window ceiling does not enforce a full-lifecycle
+ceiling. Diagnostic sampling starts at suite entry, misses earlier bootstrap
+and can miss synchronous transients. No retries or selected subsets were used.
 
 ## 2026-09-01 Windows reference
 
