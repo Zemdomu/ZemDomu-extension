@@ -236,13 +236,40 @@ export function assertBuilderContext(input, env) {
   return { workflowPath: WORKFLOW_PATH, runId: Number(env.GITHUB_RUN_ID), runAttempt: 1, repositoryId: Number(env.GITHUB_REPOSITORY_ID) };
 }
 
-function regularBytes(file, limit) {
+export function regularBytes(file, limit) {
   const resolved = path.resolve(file);
-  const stat = fs.lstatSync(resolved);
-  if (!stat.isFile() || fs.realpathSync(resolved) !== resolved || stat.size < 1 || stat.size > limit) fail("Expected a bounded regular file without symlinks.");
-  const bytes = fs.readFileSync(resolved);
-  if (bytes.length !== stat.size) fail("File changed while being read.");
-  return bytes;
+  let descriptor;
+  try {
+    descriptor = fs.openSync(resolved, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+  } catch {
+    fail("Expected a readable bounded regular file without symlinks.");
+  }
+  try {
+    const initial = fs.fstatSync(descriptor);
+    const samePath = () => {
+      const current = fs.lstatSync(resolved);
+      if (!current.isFile() || current.dev !== initial.dev || current.ino !== initial.ino ||
+          fs.realpathSync(resolved) !== resolved) fail("Expected a bounded regular file without symlinks or path replacement.");
+    };
+    if (!initial.isFile() || initial.size < 1 || initial.size > limit) fail("Expected a bounded regular file without symlinks.");
+    samePath();
+    // One extra byte detects growth without reading or allocating an unbounded
+    // replacement. All reads use the descriptor whose metadata was inspected.
+    const buffer = Buffer.allocUnsafe(initial.size + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const count = fs.readSync(descriptor, buffer, length, buffer.length - length, null);
+      if (count === 0) break;
+      length += count;
+    }
+    const final = fs.fstatSync(descriptor);
+    if (length !== initial.size || final.size !== initial.size ||
+        final.mtimeMs !== initial.mtimeMs || final.ctimeMs !== initial.ctimeMs) fail("File changed while being read.");
+    samePath();
+    return buffer.subarray(0, length);
+  } finally {
+    fs.closeSync(descriptor);
+  }
 }
 
 export function inspectSource({ rootDirectory, input, env = process.env, exec = execFileSync }) {

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { execFileSync } from "node:child_process";
-import { REPOSITORY, WORKFLOW_PATH, WORKFLOWS, FILES, digest, inputsFromEnvironment, assertBuilderContext, inspectSource, verifyReleaseGates, artifactName, prepareCandidate, verifyCandidate, verifyIntermediateArtifact, inspectProvenance, verifyAttestation, preserveProvenance, createGithubApi, extractReleaseNotes } from "../scripts/build-release-artifact.mjs";
+import { REPOSITORY, WORKFLOW_PATH, WORKFLOWS, FILES, digest, regularBytes, inputsFromEnvironment, assertBuilderContext, inspectSource, verifyReleaseGates, artifactName, prepareCandidate, verifyCandidate, verifyIntermediateArtifact, inspectProvenance, verifyAttestation, preserveProvenance, createGithubApi, extractReleaseNotes } from "../scripts/build-release-artifact.mjs";
 
 function fixture(t, prerelease = false) {
   const temp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "zd-public-build-")));
@@ -206,3 +206,69 @@ test("evidence API is GET-only, repository-bound and redacts failed subprocess o
 test("release notes reject duplicate/malformed sections and preserve real line breaks", () => {
   assert.throws(() => extractReleaseNotes("## Unreleased\n\n## 0.1.3\n\n## 0.1.3\n", "0.1.3"), /Duplicate/);assert.throws(() => extractReleaseNotes("## Unreleased\\n", "0.1.3"), /literal/);
 });
+
+
+function readerFixture(t) {
+  const directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "zd-build-reader-")));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const file = path.join(directory, "original.bin");
+  fs.writeFileSync(file, "original");
+  return { directory, file };
+}
+
+test("descriptor reader returns exact bounded bytes and closes the opened descriptor", t => {
+  const f = readerFixture(t);const descriptors = [];
+  const open = fs.openSync;
+  t.mock.method(fs, "openSync", (...args) => { const fd = open(...args);descriptors.push(fd);return fd; });
+  assert.equal(regularBytes(f.file, 8).toString(), "original");
+  assert.equal(descriptors.length, 1);
+  assert.throws(() => fs.fstatSync(descriptors[0]), { code: "EBADF" });
+});
+
+test("path replacement during a descriptor read never reads the outside replacement bytes", t => {
+  const f = readerFixture(t);
+  const outside = path.join(f.directory, "outside-keep.bin");
+  fs.writeFileSync(outside, "outside replacement secret sentinel");
+  const read = fs.readSync;const observed = [];let descriptor;
+  t.mock.method(fs, "readSync", (fd, buffer, offset, length, position) => {
+    if (descriptor === undefined) {
+      descriptor = fd;
+      fs.renameSync(f.file, path.join(f.directory, "opened-original.bin"));
+      fs.symlinkSync(outside, f.file);
+    }
+    const count = read(fd, buffer, offset, length, position);
+    observed.push(buffer.subarray(offset, offset + count).toString());
+    return count;
+  });
+  assert.throws(() => regularBytes(f.file, 64), /File changed|path replacement|regular file/);
+  assert.equal(observed.join(""), "original");
+  assert.ok(!observed.join("").includes("sentinel"));
+  assert.equal(fs.readFileSync(outside, "utf8"), "outside replacement secret sentinel");
+  assert.throws(() => fs.fstatSync(descriptor), { code: "EBADF" });
+});
+
+test("descriptor reader rejects oversized growth after inspection with at most limit plus one bytes read", t => {
+  const f = readerFixture(t);const read = fs.readSync;let total = 0;let descriptor;
+  t.mock.method(fs, "readSync", (fd, buffer, offset, length, position) => {
+    if (descriptor === undefined) { descriptor = fd;fs.appendFileSync(f.file, "x".repeat(1024 * 1024)); }
+    const count = read(fd, buffer, offset, length, position);total += count;return count;
+  });
+  assert.throws(() => regularBytes(f.file, 8), /File changed/);
+  assert.equal(total, 9);
+  assert.throws(() => fs.fstatSync(descriptor), { code: "EBADF" });
+});
+
+for (const kind of ["missing", "empty", "oversize", "directory", "symlink", "parent symlink"]) {
+  test(`descriptor reader rejects ${kind} before reading any bytes`, t => {
+    const f = readerFixture(t);let file = f.file;
+    if (kind === "missing") fs.unlinkSync(file);
+    else if (kind === "empty") fs.truncateSync(file);
+    else if (kind === "oversize") fs.appendFileSync(file, "extra");
+    else if (kind === "directory") { fs.unlinkSync(file);fs.mkdirSync(file); }
+    else if (kind === "symlink") { const target = path.join(f.directory, "target");fs.renameSync(file, target);fs.symlinkSync(target, file); }
+    else if (kind === "parent symlink") { const link = path.join(f.directory, "link");const target = path.join(f.directory, "target");fs.mkdirSync(target);fs.renameSync(file, path.join(target, "original.bin"));fs.symlinkSync(target, link);file = path.join(link, "original.bin"); }
+    let reads = 0;t.mock.method(fs, "readSync", () => { reads++;throw new Error("unexpected read"); });
+    assert.throws(() => regularBytes(file, 8), /regular file/);
+    assert.equal(reads, 0);
+  });
+}
