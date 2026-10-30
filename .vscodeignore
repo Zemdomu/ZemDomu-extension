@@ -11,6 +11,7 @@ src/
 *.ts
 *.tsx
 tsconfig.json
+.c8rc.json
 
 # Build/test/config files
 .vscode/
@@ -19,6 +20,8 @@ tsconfig.json
 *.map
 *.test.*
 *.spec.*
+scripts/
+coverage/
 
 # Git stuff
 .git/

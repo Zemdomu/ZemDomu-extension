@@ -31,6 +31,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Validate source-mapped TypeScript coverage
+        run: npm run test:coverage
+
       # Packaging runs the complete test/prepublish hook, then checks archive
       # contents and size. The bundled runtime uses the locked npm Core.
       - name: Test, package, and inspect VSIX
