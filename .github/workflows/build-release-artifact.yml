@@ -87,7 +87,7 @@ jobs:
         run: node .github/scripts/build-release-artifact.mjs prepare
       - name: Retain inspected public build
         id: upload
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.bind.outputs.input_artifact_name }}
           path: ${{ env.BUILD_OUTPUT }}/
@@ -149,7 +149,7 @@ jobs:
           ATTESTATION_BUNDLE_PATH: ${{ steps.provenance.outputs.bundle-path }}
         run: node .github/scripts/build-release-artifact.mjs provenance
       - name: Retain attested public release artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ needs.build.outputs.artifact-name }}
           path: ${{ env.BUILD_OUTPUT }}/
